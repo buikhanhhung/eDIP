@@ -51,7 +51,7 @@ eDIP-v2/
 |-------|------|----:|---|--------|
 | 1 | [Bedrock & Docker Gate](./phase-01-bedrock-docker-gate.md) | 0.75 | *Cổng chặn — hỏng ở đây là đổi kế hoạch* | **Done** |
 | 2 | [Skeleton DB Auth Seed](./phase-02-skeleton-db-auth-seed.md) | 3.5 | Đăng nhập 3 role, library + dashboard theo loại, **entity đã sẵn sàng** | **Done** |
-| 3 | [Upload & Ingest Pipeline](./phase-03-upload-ingest-pipeline.md) | 2.5 | Upload → processing → completed + metadata tự sinh | Pending |
+| 3 | [Upload & Ingest Pipeline](./phase-03-upload-ingest-pipeline.md) | 2.5 | Upload → processing → completed + metadata tự sinh | **Code xong, chờ credential** |
 | 4 | [Hybrid Search & RAG Ask](./phase-04-hybrid-search-rag-ask.md) | 1.5 | Hỏi tiếng Việt, trả lời kèm nguồn | Pending |
 | 5 | [Entity & Knowledge Graph](./phase-05-entity-knowledge-graph.md) | 1.25 | Knowledge graph click được | Pending |
 | 6 | [Audit Metadata Edit Highlight](./phase-06-audit-metadata-edit-highlight.md) | 1.25 | Đủ 6 bước demo flow trong đề | Pending |

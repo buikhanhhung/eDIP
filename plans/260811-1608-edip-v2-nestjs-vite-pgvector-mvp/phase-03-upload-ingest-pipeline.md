@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "Upload & Ingest Pipeline"
-status: pending
+status: code-complete-unverified
 priority: P1
 dependencies: [2]
 effort: "2.5h"
@@ -206,17 +206,34 @@ Detail page: preview `textContent`, metadata panel, summary, badge `documentType
 
 ## Success Criteria
 
-- [ ] Upload `.md` → completed, `textSource='native'`, có `documentType` + summary
-- [ ] Upload `$V1/seed/fixtures/scanned-contract.pdf` → `textSource='vision'`, `textContent` không rỗng
-- [ ] Upload `$V1/seed/fixtures/vietnamese-scan.jpg` → đọc đúng chữ Việt
-- [ ] **Không có đường nào dẫn tới `status='completed'` với `textContent` rỗng** — thử bằng cách tạm bỏ `ensurePdfjs()`, phải ra `failed`
-- [ ] Upload `.exe` → **400** trước khi ghi đĩa
-- [ ] Upload multipart với `filename="../../.env"` → file nằm trong `STORAGE_DIR` dưới tên `<uuid>.env`, `.env` gốc **không** bị đụng
-- [ ] Upload bằng token `user` → **403**
-- [ ] Chạy lại cùng 1 job 2 lần → `SELECT count(*) FROM embedding_chunks WHERE document_id=...` không đổi
-- [ ] Ngắt mạng giữa chừng → retry 3 lần rồi `failed` + `error`, document vẫn hiện trong library
-- [ ] Mọi `entities[].text` tìm thấy verbatim trong `textContent`, hoặc đã bị bỏ offset
-- [ ] FE: badge chuyển đủ 3 trạng thái, không reload tay
+Kiểm ngày 11/08 với `.env` **chưa có** AWS credential. Mọi tiêu chí không chạm Bedrock đều đã xác minh thật; phần còn lại chặn ở đó.
+
+- [x] Upload `.exe` → **400** trước khi ghi đĩa (thông báo liệt kê đúng danh sách hỗ trợ)
+- [x] Upload multipart với `filename="../../evil.md"` → lưu thành `<uuid>.md` trong `STORAGE_DIR`; không có `evil.md` nào xuất hiện ở 4 thư mục cha đã kiểm
+- [x] Upload bằng token `user` → **403** (`Role "user" is not allowed to upload`)
+- [x] `POST /documents` → **202**, job vào queue, `GET /documents/:id/status` chuyển `uploaded → processing`
+- [x] Retry thật: 3 lần cách nhau 2s/4s (log 20:20:44 → 20:20:47 → 20:20:51), chỉ lần cuối mới ghi `status='failed'` + `error`
+- [x] Lỗi thiếu credential hiện nguyên văn trên document, không phải lỗi SDK khó hiểu
+- [x] FE: badge tự chuyển `Đang xử lý → Lỗi` qua polling, không reload tay
+- [x] `.exe`/double-extension/traversal có unit test (`allowlist.spec.ts`), splitter có unit test — 49 test pass
+- [ ] Upload `.md` → **completed** với `documentType` + summary — *chặn: cần credential*
+- [ ] `scanned-contract.pdf` → `textSource='vision'`, text không rỗng — *chặn: cần credential*
+- [ ] `vietnamese-scan.jpg` → đọc đúng chữ Việt — *chặn: cần credential*
+- [ ] Không đường nào ra `completed` với `textContent` rỗng — *code đã có 4 assert; chưa chạy được đường vision để chứng minh*
+- [ ] Chạy lại job 2 lần → `count(*) FROM embedding_chunks` không đổi — *chặn: chunk chỉ ghi sau bước analyse*
+- [ ] Mọi `entities[].text` verbatim hoặc bỏ offset — *cơ chế `indexOf` đã dùng chung với seed và chạy đúng ở seed (55/59 có offset)*
+
+## Deviation Log (11/08)
+
+| Điểm | Kế hoạch | Thực tế | Lý do |
+|---|---|---|---|
+| OCR ảnh/PDF scan | port `ocr.ts` (tesseract) của v1 | Claude vision | Plan đã chốt vision; tesseract chỉ còn là đường lui nếu vision hỏng |
+| `global-singleton.ts` | port | bỏ | Nó tồn tại vì Next dev-server re-eval module. Nest không làm vậy — một biến module-level là đủ, và `ensurePdfjs` vẫn xoá promise khi lỗi |
+| `content-parser` | không copy | không copy | Giữ nguyên quyết định; splitter tự viết 30 dòng, có test |
+| Gắn entity | ghi "phase 5" | làm luôn ở phase 3 | Không có nó thì tài liệu vừa upload không bao giờ vào graph. Tách thành `entity-linker.ts` dùng chung với seed thay vì chép logic lần hai |
+| `GET /documents/:id/download` | ngụ ý ở §1 | làm luôn | `downloadMimeFor` + `attachment` + `nosniff` vô nghĩa nếu không có route để bảo vệ |
+| `@types/multer` | — | không dùng `Express.Multer.File` | v2 bỏ khai báo namespace toàn cục. Controller nhận interface tối thiểu tự khai — ít ràng buộc hơn, build sạch |
+| Đánh dấu `failed` | ngay khi job lỗi | chỉ ở lần thử cuối | Bật cờ đỏ ở lần 1 rồi retry thành công sẽ để lại badge sai, vì không ai đọc lại nó |
 
 ## Risk Assessment
 
