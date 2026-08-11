@@ -1,0 +1,135 @@
+// Pinned to prisma-client-js on purpose: a fresh Prisma 7 scaffold defaults to
+// the `prisma-client` generator, whose output is imported from a generated path
+// rather than `@prisma/client` — which is what PrismaService imports.
+generator client {
+  provider = "prisma-client-js"
+}
+
+// No `url` here — it comes from prisma.config.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  admin
+  user
+  viewer
+}
+
+enum DocumentStatus {
+  uploaded
+  processing
+  completed
+  failed
+}
+
+enum TextSource {
+  native
+  pdf_text
+  docx
+  vision
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(viewer)
+  createdAt    DateTime   @default(now())
+  documents    Document[]
+  auditLogs    AuditLog[]
+}
+
+model Document {
+  id          String @id @default(uuid())
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  storagePath String
+  ownerId     String
+  owner       User   @relation(fields: [ownerId], references: [id])
+
+  status DocumentStatus @default(uploaded)
+  error  String?
+
+  documentType   String? // contract | invoice | report | policy | kyc | other
+  typeConfidence Float?
+  language       String?
+  title          String?
+  summary        String?
+  textContent    String?
+  textSource     TextSource?
+
+  /// { parties: string[], date: string|null, amount: string|null, keywords: string[] }
+  metadata           Json?
+  metadataEditedById String?
+  metadataEditedAt   DateTime?
+
+  uploadedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  entities DocumentEntity[]
+
+  @@index([status])
+  @@index([documentType])
+  @@index([uploadedAt])
+}
+
+model Entity {
+  id             String @id @default(uuid())
+  type           String // company | person | contract | invoice | project | date | amount | department
+  normalizedName String
+  displayName    String
+
+  documents DocumentEntity[]
+
+  /// Unique on (type, normalizedName), not on normalizedName alone: upserts use
+  /// `update: {}`, so a name-only key would let the first-seen type win forever.
+  @@unique([type, normalizedName])
+}
+
+model DocumentEntity {
+  documentId  String
+  entityId    String
+  mentionText String
+  charStart   Int?
+  charEnd     Int?
+  confidence  Float?
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  entity   Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, entityId, mentionText])
+  @@index([entityId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  targetType String?
+  targetId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Modelled even though `vector` is an unsupported column type. Leaving the
+/// table out of the schema entirely makes the next `migrate dev` emit
+/// `DROP TABLE embedding_chunks` as a drift correction.
+model EmbeddingChunk {
+  id               Int      @id @default(autoincrement())
+  documentId       String   @map("document_id")
+  content          String
+  parentContent    String?  @map("parent_content")
+  chunkingStrategy String?  @map("chunking_strategy")
+  chunkIndex       Int?     @map("chunk_index")
+  metadata         Json?
+  embedding        Unsupported("vector(1024)")?
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([documentId])
+  @@map("embedding_chunks")
+}

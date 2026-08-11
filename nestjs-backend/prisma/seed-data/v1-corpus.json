@@ -1,0 +1,741 @@
+[
+  {
+    "text": "CHÍNH SÁCH BẢO MẬT THÔNG TIN NỘI BỘ\n\nMã tài liệu: ECV-CS-BM-02\nPhiên bản 2.1, hiệu lực từ ngày 20 tháng 01 năm 2026\nĐơn vị ban hành: Phòng An toàn Thông tin, Ecloudvalley Vietnam Ltd\n\n1. MỤC ĐÍCH\n\nChính sách này quy định các nguyên tắc bảo vệ thông tin của công ty và của khách hàng, nhằm đảm bảo tuân thủ tiêu chuẩn ISO 27001 và quy định pháp luật về an toàn thông tin mạng.\n\n2. PHẠM VI ÁP DỤNG\n\nQuy định áp dụng cho toàn bộ nhân viên, cộng tác viên và nhà thầu có quyền truy cập hệ thống thông tin của công ty.\n\n3. PHÂN LOẠI THÔNG TIN\n\nThông tin được phân thành bốn mức: công khai, nội bộ, hạn chế và tối mật. Thông tin của khách hàng mặc định được xếp ở mức hạn chế trở lên.\n\n4. QUY ĐỊNH TRUY CẬP\n\nViệc cấp quyền truy cập phải tuân thủ nguyên tắc đặc quyền tối thiểu. Mọi tài khoản bắt buộc phải bật xác thực đa yếu tố. Quyền truy cập được rà soát định kỳ hàng quý và thu hồi ngay khi nhân sự chuyển bộ phận hoặc nghỉ việc.\n\n5. XỬ LÝ SỰ CỐ\n\nMọi sự cố an toàn thông tin phải được báo cáo cho Phòng An toàn Thông tin trong vòng 24 giờ kể từ khi phát hiện. Quy trình điều tra và khắc phục được mô tả trong tài liệu hướng dẫn xử lý sự cố.\n\n6. ĐÀO TẠO\n\nNhân viên bắt buộc tham gia khóa đào tạo nhận thức an toàn thông tin ít nhất một lần mỗi năm.\n\n7. XỬ LÝ VI PHẠM\n\nTrường hợp vi phạm chính sách sẽ được xử lý theo quy định nội bộ của công ty và quy định pháp luật hiện hành.\n",
+    "textSource": "native",
+    "ocrConfidence": null,
+    "storedPath": "d84876c8ed2fef08.md",
+    "analysis": {
+      "type": "policy",
+      "typeConfidence": 0.95,
+      "metadata": {
+        "title": "CHÍNH SÁCH BẢO MẬT THÔNG TIN NỘI BỘ",
+        "parties": [
+          "Ecloudvalley Vietnam Ltd"
+        ],
+        "documentDate": "2026-01-20",
+        "amount": null,
+        "currency": null,
+        "keywords": [
+          "thông",
+          "tin",
+          "định",
+          "quy",
+          "toàn",
+          "cập",
+          "công",
+          "quyền"
+        ],
+        "language": "vi"
+      },
+      "summary": "Tài liệu loại policy, liên quan Ecloudvalley Vietnam Ltd, ngày 2026-01-20. MỤC ĐÍCH Chính sách này quy định các nguyên tắc bảo vệ thông tin của công ty và của khách hàng, nhằm đảm bảo tuân thủ tiêu chuẩn ISO 27001 và quy định pháp luật về an toàn thông tin mạng. PHẠM VI ÁP DỤNG Quy định áp dụng cho toàn bộ nhân viên, cộng tác viên và nhà thầu có quyền truy cập hệ thống thông tin của công ty. QUY ĐỊNH TRUY CẬP Việc cấp quyền truy cập phải tuân thủ nguyên tắc đặc quyền tối thiểu.",
+      "tags": [
+        "policy",
+        "vi",
+        "thông",
+        "tin",
+        "định"
+      ],
+      "entities": [
+        {
+          "kind": "company",
+          "value": "Ecloudvalley Vietnam Ltd",
+          "confidence": 0.92
+        },
+        {
+          "kind": "date",
+          "value": "2026-01-20",
+          "confidence": 0.9
+        },
+        {
+          "kind": "department",
+          "value": "An toàn Thông tin",
+          "confidence": 0.7
+        }
+      ]
+    },
+    "id": "d84876c8ed2fef08",
+    "fileName": "chinh-sach-bao-mat-thong-tin.md",
+    "mimeType": "text/markdown",
+    "sizeBytes": 1782,
+    "sha256": "40546d7db820d1885cc9dea6bcf456af219b0d41fca2736b65da5c4bc18cde08",
+    "uploadedAt": "2026-08-11T07:26:50.219Z",
+    "ownerId": "6dddace7-2e9d-45f2-8381-b357f639d9d7",
+    "status": "completed"
+  },
+  {
+    "text": "MASTER SERVICES AGREEMENT\n\nContract No: ECV-MSA-2026-014\nEffective date: 2026-01-15\n\nParty A: Ecloudvalley Vietnam Ltd\nParty B: Saigon Retail JSC\n\nThis Master Services Agreement sets out the terms and conditions under which Ecloudvalley Vietnam Ltd provides cloud migration, managed operations and FinOps advisory services to Saigon Retail JSC.\n\n1. SCOPE OF SERVICES\n\nThe services are delivered under Project Atlas, covering the migration of the customer's e-commerce platform to AWS, ongoing 24/7 managed operations, and quarterly cost optimisation reviews. Detailed deliverables are described in each Statement of Work issued under this agreement.\n\n2. CONTRACT VALUE\n\nThe total contract value for the initial twelve month term is 2,400,000,000 VND, invoiced monthly in arrears. Payment terms are net 30 days from the invoice date.\n\n3. TERM AND TERMINATION\n\nThis agreement takes effect on the effective date above and remains in force for twelve months. Either party may terminate for material breach with thirty days written notice.\n\n4. CONFIDENTIALITY\n\nBoth parties shall keep confidential all information disclosed under this agreement and shall not disclose it to any third party without prior written consent.\n\n5. GOVERNING LAW\n\nThis agreement is governed by the laws of Vietnam. Disputes shall be resolved by the Vietnam International Arbitration Centre.\n\nSigned for Party A by Mr. Nguyen Van An, Managing Director.\nSigned for Party B by Ms. Le Thi Hoa, Chief Operating Officer.\n",
+    "textSource": "native",
+    "ocrConfidence": null,
+    "storedPath": "dcf00edcdb848e9a.md",
+    "analysis": {
+      "type": "contract",
+      "typeConfidence": 0.91,
+      "metadata": {
+        "title": "MASTER SERVICES AGREEMENT",
+        "parties": [
+          "Ecloudvalley Vietnam Ltd",
+          "Saigon Retail JSC"
+        ],
+        "documentDate": "2026-01-15",
+        "amount": 2400000000,
+        "currency": "VND",
+        "keywords": [
+          "agreement",
+          "party",
+          "services",
+          "under",
+          "vietnam",
+          "contract",
+          "date",
+          "days"
+        ],
+        "language": "en"
+      },
+      "summary": "Tài liệu loại contract, liên quan Ecloudvalley Vietnam Ltd, Saigon Retail JSC, ngày 2026-01-15, giá trị 2,400,000,000 VND. MASTER SERVICES AGREEMENT Contract No: ECV-MSA-2026-014 Effective date: 2026-01-15 Party A: Ecloudvalley Vietnam Ltd Party B: Saigon Retail JSC This Master Services Agreement sets out the terms and conditions under which Ecloudvalley Vietnam Ltd provides cloud migration, managed operations and FinOps advisory services to Saigon Retail JSC. SCOPE OF SERVICES The services are delivered under Project Atlas, covering the migration of the customer's e-commerce platform to AWS, ongoing 24/7 managed operations, and quarterly cost optimisation reviews. CONFIDENTIALITY Both parties shall keep confidential all information disclosed under this agreement and shall not disclose it to any third party without prior written consent.",
+      "tags": [
+        "contract",
+        "en",
+        "high-value",
+        "multi-party",
+        "agreement",
+        "party",
+        "services"
+      ],
+      "entities": [
+        {
+          "kind": "company",
+          "value": "Ecloudvalley Vietnam Ltd",
+          "confidence": 0.92
+        },
+        {
+          "kind": "company",
+          "value": "Saigon Retail JSC",
+          "confidence": 0.92
+        },
+        {
+          "kind": "date",
+          "value": "2026-01-15",
+          "confidence": 0.9
+        },
+        {
+          "kind": "amount",
+          "value": "2,400,000,000 VND",
+          "confidence": 0.9
+        },
+        {
+          "kind": "person",
+          "value": "Nguyen Van An",
+          "confidence": 0.8
+        },
+        {
+          "kind": "person",
+          "value": "Le Thi Hoa",
+          "confidence": 0.8
+        },
+        {
+          "kind": "project",
+          "value": "Atlas",
+          "confidence": 0.75
+        }
+      ]
+    },
+    "id": "dcf00edcdb848e9a",
+    "fileName": "contract-msa-saigon-retail.md",
+    "mimeType": "text/markdown",
+    "sizeBytes": 1486,
+    "sha256": "f18607cd87840641fb13a63135e071868c630e3ecb7adac5cf04447f908a5302",
+    "uploadedAt": "2026-08-11T07:26:50.276Z",
+    "ownerId": "6dddace7-2e9d-45f2-8381-b357f639d9d7",
+    "status": "completed"
+  },
+  {
+    "text": "STATEMENT OF WORK — CORE BANKING MIGRATION ASSESSMENT\n\nSOW reference: ECV-SOW-2026-031\nEffective date: 2026-03-02\n\nParty A: Ecloudvalley Vietnam Ltd\nParty B: VietBank Corp\n\nThis Statement of Work is issued under the framework agreement between the parties and describes the assessment phase of Project Meridian.\n\n1. OBJECTIVES\n\nAssess the readiness of the customer's core banking peripheral systems for migration to a regulated cloud landing zone, and produce a migration roadmap with an associated cost model.\n\n2. DELIVERABLES\n\nCurrent state assessment report. Target landing zone architecture aligned to the regulator's cloud guidance. Migration wave plan with dependencies. Three year total cost of ownership model. Risk register with mitigation owners.\n\n3. ASSUMPTIONS\n\nThe customer provides system inventories and architecture documentation within ten working days of the effective date. Regulatory approval for the target region is obtained by the customer. Access to non-production environments is granted for discovery.\n\n4. COMMERCIAL TERMS\n\nThe assessment phase is delivered for a fixed fee of USD 48,000, invoiced fifty percent on commencement and fifty percent on acceptance of the deliverables. Payment terms are net 30 days. The build phase, if commissioned, will be priced under a separate Statement of Work.\n\n5. ACCEPTANCE\n\nDeliverables are deemed accepted if no written objection is received within ten working days of submission.\n\n6. GOVERNANCE\n\nA joint steering committee meets fortnightly. Escalation runs through the engagement leads named in Appendix A.\n\nSigned for Party A by Mr. Nguyen Van An, Managing Director.\nSigned for Party B by Mr. Tran Minh Duc, Chief Technology Officer.\n",
+    "textSource": "native",
+    "ocrConfidence": null,
+    "storedPath": "ed62917d1788aab3.md",
+    "analysis": {
+      "type": "contract",
+      "typeConfidence": 0.91,
+      "metadata": {
+        "title": "STATEMENT OF WORK — CORE BANKING MIGRATION ASSESSMENT",
+        "parties": [
+          "Ecloudvalley Vietnam Ltd",
+          "VietBank Corp"
+        ],
+        "documentDate": "2026-03-02",
+        "amount": 48000,
+        "currency": "USD",
+        "keywords": [
+          "assessment",
+          "migration",
+          "party",
+          "customer",
+          "days",
+          "deliverables",
+          "phase",
+          "statement"
+        ],
+        "language": "en"
+      },
+      "summary": "Tài liệu loại contract, liên quan Ecloudvalley Vietnam Ltd, VietBank Corp, ngày 2026-03-02, giá trị 48,000 USD. STATEMENT OF WORK — CORE BANKING MIGRATION ASSESSMENT SOW reference: ECV-SOW-2026-031 Effective date: 2026-03-02 Party A: Ecloudvalley Vietnam Ltd Party B: VietBank Corp This Statement of Work is issued under the framework agreement between the parties and describes the assessment phase of Project Meridian. OBJECTIVES Assess the readiness of the customer's core banking peripheral systems for migration to a regulated cloud landing zone, and produce a migration roadmap with an associated cost model. DELIVERABLES Current state assessment report.",
+      "tags": [
+        "contract",
+        "en",
+        "multi-party",
+        "assessment",
+        "migration",
+        "party"
+      ],
+      "entities": [
+        {
+          "kind": "company",
+          "value": "Ecloudvalley Vietnam Ltd",
+          "confidence": 0.92
+        },
+        {
+          "kind": "company",
+          "value": "VietBank Corp",
+          "confidence": 0.92
+        },
+        {
+          "kind": "date",
+          "value": "2026-03-02",
+          "confidence": 0.9
+        },
+        {
+          "kind": "amount",
+          "value": "48,000 USD",
+          "confidence": 0.9
+        },
+        {
+          "kind": "person",
+          "value": "Nguyen Van An",
+          "confidence": 0.8
+        },
+        {
+          "kind": "person",
+          "value": "Tran Minh Duc",
+          "confidence": 0.8
+        },
+        {
+          "kind": "project",
+          "value": "Meridian",
+          "confidence": 0.75
+        }
+      ]
+    },
+    "id": "ed62917d1788aab3",
+    "fileName": "contract-vietbank-migration-sow.md",
+    "mimeType": "text/markdown",
+    "sizeBytes": 1705,
+    "sha256": "f2252709e2ed9c12dc770bdf27c37eb1cd4d05644dfb384d903fbf1f2462711b",
+    "uploadedAt": "2026-08-11T07:26:50.281Z",
+    "ownerId": "6dddace7-2e9d-45f2-8381-b357f639d9d7",
+    "status": "completed"
+  },
+  {
+    "text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n\nSố hóa đơn: HD-2026-0318\nNgày 31 tháng 03 năm 2026\n\nĐơn vị bán hàng: Ecloudvalley Vietnam Ltd\nMã số thuế: 0312345678\n\nKhách hàng: Hanoi Logistics Ltd\nMã số thuế: 0104567890\nĐịa chỉ: 15 Pham Hung, Nam Tu Liem, Hà Nội\n\nTham chiếu: Hợp đồng ECV-HD-2026-027, Dự án Vanguard\n\n| STT | Nội dung                                  | Thành tiền   |\n|-----|-------------------------------------------|--------------|\n| 1   | Dịch vụ hạ tầng đám mây tháng 03/2026     | 85,000,000   |\n| 2   | Dịch vụ vận hành và giám sát hệ thống      | 60,000,000   |\n| 3   | Hỗ trợ kỹ thuật ngoài giờ                 | 15,000,000   |\n\nCộng tiền hàng: 160,000,000 VND\nThuế VAT 10%: 16,000,000 VND\nTổng cộng thanh toán: 176,000,000 VND\n\nĐiều khoản thanh toán: trong vòng 30 ngày kể từ ngày xuất hóa đơn. Đề nghị Khách hàng ghi rõ số hóa đơn khi chuyển khoản.\n\nNgười lập: Phòng Kế toán, Ecloudvalley Vietnam Ltd.\nNgười duyệt: Bà Pham Thu Ha, Hanoi Logistics Ltd.\n",
+    "textSource": "native",
+    "ocrConfidence": null,
+    "storedPath": "20e68c7dbeadd0b9.md",
+    "analysis": {
+      "type": "invoice",
+      "typeConfidence": 0.93,
+      "metadata": {
+        "title": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG",
+        "parties": [
+          "Hanoi Logistics Ltd"
+        ],
+        "documentDate": "2026-03-31",
+        "amount": 176000000,
+        "currency": "VND",
+        "keywords": [
+          "đơn",
+          "hàng",
+          "hóa",
+          "ltd",
+          "ngày",
+          "thuế",
+          "toán",
+          "vnd"
+        ],
+        "language": "vi"
+      },
+      "summary": "Tài liệu loại invoice, liên quan Hanoi Logistics Ltd, ngày 2026-03-31, giá trị 176,000,000 VND. HÓA ĐƠN GIÁ TRỊ GIA TĂNG Số hóa đơn: HD-2026-0318 Ngày 31 tháng 03 năm 2026 Đơn vị bán hàng: Ecloudvalley Vietnam Ltd Mã số thuế: 0312345678 Khách hàng: Hanoi Logistics Ltd Mã số thuế: 0104567890 Địa chỉ: 15 Pham Hung, Nam Tu Liem, Hà Nội Tham chiếu: Hợp đồng ECV-HD-2026-027, Dự án Vanguard | STT | Nội dung | Thành tiền | |-----|-------------------------------------------|--------------| | 1 | Dịch vụ hạ tầng đám mây tháng 03/2026 | 85,000,000 | | 2 | Dịch vụ vận hành và giám sát hệ thống | 60,000,000 | | 3 | Hỗ trợ kỹ thuật ngoài giờ | 15,000,000 | Cộng tiền hàng: 160,000,000 VND Thuế VAT 10%: 16,000,000 VND Tổng cộng thanh toán: 176,000,000 VND Điều khoản thanh toán: trong vòng 30 ngày kể từ ngày xuất hóa đơn. Đề nghị Khách hàng ghi rõ số hóa đơn khi chuyển khoản. Người lập: Phòng Kế toán, Ecloudvalley Vietnam Ltd.",
+      "tags": [
+        "invoice",
+        "vi",
+        "đơn",
+        "hàng",
+        "hóa"
+      ],
+      "entities": [
+        {
+          "kind": "company",
+          "value": "Hanoi Logistics Ltd",
+          "confidence": 0.92
+        },
+        {
+          "kind": "date",
+          "value": "2026-03-31",
+          "confidence": 0.9
+        },
+        {
+          "kind": "amount",
+          "value": "176,000,000 VND",
+          "confidence": 0.9
+        },
+        {
+          "kind": "person",
+          "value": "Pham Thu Ha",
+          "confidence": 0.8
+        },
+        {
+          "kind": "company",
+          "value": "Ecloudvalley Vietnam Ltd",
+          "confidence": 0.78
+        },
+        {
+          "kind": "project",
+          "value": "Vanguard",
+          "confidence": 0.75
+        },
+        {
+          "kind": "department",
+          "value": "Kế toán",
+          "confidence": 0.7
+        }
+      ]
+    },
+    "id": "20e68c7dbeadd0b9",
+    "fileName": "hoa-don-hanoi-logistics-thang-03.md",
+    "mimeType": "text/markdown",
+    "sizeBytes": 1114,
+    "sha256": "72169330334bc630f7549d84b346482cc5a0db0753acad8a128d07fb748b19b7",
+    "uploadedAt": "2026-08-11T07:26:50.288Z",
+    "ownerId": "6dddace7-2e9d-45f2-8381-b357f639d9d7",
+    "status": "completed"
+  },
+  {
+    "text": "HỢP ĐỒNG CUNG CẤP DỊCH VỤ ĐIỆN TOÁN ĐÁM MÂY\n\nSố hợp đồng: ECV-HD-2026-027\nNgày 08 tháng 02 năm 2026\n\nBên A: Ecloudvalley Vietnam Ltd\nBên B: Hanoi Logistics Ltd\n\nHai bên thống nhất ký kết hợp đồng cung cấp dịch vụ hạ tầng đám mây và vận hành hệ thống với các điều khoản sau đây.\n\nĐIỀU 1. PHẠM VI CÔNG VIỆC\n\nBên A cung cấp cho Bên B dịch vụ thiết kế hạ tầng, di chuyển hệ thống quản lý kho lên nền tảng đám mây, và dịch vụ vận hành giám sát liên tục. Công việc thuộc Dự án Vanguard do Phòng Kỹ thuật của Bên A chịu trách nhiệm triển khai.\n\nĐIỀU 2. GIÁ TRỊ HỢP ĐỒNG\n\nTổng giá trị hợp đồng là 1,850,000,000 VND, đã bao gồm thuế VAT. Bên B thanh toán theo từng tháng, trong vòng 30 ngày kể từ ngày nhận hóa đơn hợp lệ.\n\nĐIỀU 3. THỜI HẠN HIỆU LỰC\n\nHợp đồng có hiệu lực kể từ ngày ký và kéo dài trong 24 tháng. Hai bên có thể gia hạn bằng phụ lục hợp đồng.\n\nĐIỀU 4. BẢO MẬT THÔNG TIN\n\nCác bên có trách nhiệm bảo mật toàn bộ thông tin trao đổi trong quá trình thực hiện hợp đồng, tuân thủ quy định pháp luật hiện hành về bảo vệ dữ liệu cá nhân.\n\nĐIỀU 5. GIẢI QUYẾT TRANH CHẤP\n\nMọi tranh chấp phát sinh sẽ được hai bên thương lượng giải quyết. Trường hợp không đạt được thỏa thuận, tranh chấp sẽ được đưa ra Trung tâm Trọng tài Quốc tế Việt Nam.\n\nĐại diện Bên A: Ông Nguyen Van An, Giám đốc điều hành.\nĐại diện Bên B: Bà Pham Thu Ha, Trưởng phòng Vận hành.\n",
+    "textSource": "native",
+    "ocrConfidence": null,
+    "storedPath": "9c03c41df93e719f.md",
+    "analysis": {
+      "type": "contract",
+      "typeConfidence": 0.93,
+      "metadata": {
+        "title": "HỢP ĐỒNG CUNG CẤP DỊCH VỤ ĐIỆN TOÁN ĐÁM MÂY",
+        "parties": [
+          "Ecloudvalley Vietnam Ltd",
+          "Hanoi Logistics Ltd"
+        ],
+        "documentDate": "2026-02-08",
+        "amount": 1850000000,
+        "currency": "VND",
+        "keywords": [
+          "hợp",
+          "đồng",
+          "điều",
+          "hành",
+          "dịch",
+          "ngày",
+          "bảo",
+          "cấp"
+        ],
+        "language": "vi"
+      },
+      "summary": "Tài liệu loại contract, liên quan Ecloudvalley Vietnam Ltd, Hanoi Logistics Ltd, ngày 2026-02-08, giá trị 1,850,000,000 VND. HỢP ĐỒNG CUNG CẤP DỊCH VỤ ĐIỆN TOÁN ĐÁM MÂY Số hợp đồng: ECV-HD-2026-027 Ngày 08 tháng 02 năm 2026 Bên A: Ecloudvalley Vietnam Ltd Bên B: Hanoi Logistics Ltd Hai bên thống nhất ký kết hợp đồng cung cấp dịch vụ hạ tầng đám mây và vận hành hệ thống với các điều khoản sau đây. PHẠM VI CÔNG VIỆC Bên A cung cấp cho Bên B dịch vụ thiết kế hạ tầng, di chuyển hệ thống quản lý kho lên nền tảng đám mây, và dịch vụ vận hành giám sát liên tục. BẢO MẬT THÔNG TIN Các bên có trách nhiệm bảo mật toàn bộ thông tin trao đổi trong quá trình thực hiện hợp đồng, tuân thủ quy định pháp luật hiện hành về bảo vệ dữ liệu cá nhân.",
+      "tags": [
+        "contract",
+        "vi",
+        "high-value",
+        "multi-party",
+        "hợp",
+        "đồng",
+        "điều"
+      ],
+      "entities": [
+        {
+          "kind": "company",
+          "value": "Ecloudvalley Vietnam Ltd",
+          "confidence": 0.92
+        },
+        {
+          "kind": "company",
+          "value": "Hanoi Logistics Ltd",
+          "confidence": 0.92
+        },
+        {
+          "kind": "date",
+          "value": "2026-02-08",
+          "confidence": 0.9
+        },
+        {
+          "kind": "amount",
+          "value": "1,850,000,000 VND",
+          "confidence": 0.9
+        },
+        {
+          "kind": "person",
+          "value": "Nguyen Van An",
+          "confidence": 0.8
+        },
+        {
+          "kind": "person",
+          "value": "Pham Thu Ha",
+          "confidence": 0.8
+        },
+        {
+          "kind": "project",
+          "value": "Vanguard",
+          "confidence": 0.75
+        },
+        {
+          "kind": "department",
+          "value": "Kỹ thuật",
+          "confidence": 0.7
+        }
+      ]
+    },
+    "id": "9c03c41df93e719f",
+    "fileName": "hop-dong-dich-vu-hanoi-logistics.md",
+    "mimeType": "text/markdown",
+    "sizeBytes": 1752,
+    "sha256": "7b8020519032f817c9a3256d7588b73501c949e7eace34470a9c051dc2da687c",
+    "uploadedAt": "2026-08-11T07:26:50.294Z",
+    "ownerId": "6dddace7-2e9d-45f2-8381-b357f639d9d7",
+    "status": "completed"
+  },
+  {
+    "text": "TAX INVOICE\n\nInvoice number: INV-2026-0412\nInvoice date: 2026-04-05\nDue date: 2026-05-05\n\nSupplier: Ecloudvalley Vietnam Ltd\nTax code: 0312345678\n\nBill To: Saigon Retail JSC\nTax code: 0309876543\nAddress: 42 Nguyen Hue Boulevard, District 1, Ho Chi Minh City\n\nReference: Master Services Agreement ECV-MSA-2026-014, Project Atlas\n\n| Line | Description                              | Amount        |\n|------|------------------------------------------|---------------|\n| 1    | Managed cloud operations, April 2026     | 120,000,000   |\n| 2    | FinOps advisory, April 2026              | 45,000,000    |\n| 3    | AWS reserved instance management         | 35,000,000    |\n\nSubtotal: 200,000,000 VND\nVAT 10%: 20,000,000 VND\nTotal amount due: 220,000,000 VND\n\nPayment terms: net 30 days. Please remit to the bank account stated on the remittance advice and quote the invoice number as the payment reference.\n\nIssued by the Department of Finance, Ecloudvalley Vietnam Ltd.\nApproved by Ms. Le Thi Hoa on behalf of Saigon Retail JSC.\n",
+    "textSource": "native",
+    "ocrConfidence": null,
+    "storedPath": "38743ba7cf72320f.md",
+    "analysis": {
+      "type": "invoice",
+      "typeConfidence": 0.94,
+      "metadata": {
+        "title": "TAX INVOICE",
+        "parties": [
+          "Ecloudvalley Vietnam Ltd",
+          "Saigon Retail JSC"
+        ],
+        "documentDate": "2026-04-05",
+        "amount": 220000000,
+        "currency": "VND",
+        "keywords": [
+          "invoice",
+          "tax",
+          "vnd",
+          "amount",
+          "april",
+          "code",
+          "date",
+          "due"
+        ],
+        "language": "en"
+      },
+      "summary": "Tài liệu loại invoice, liên quan Ecloudvalley Vietnam Ltd, Saigon Retail JSC, ngày 2026-04-05, giá trị 220,000,000 VND. TAX INVOICE Invoice number: INV-2026-0412 Invoice date: 2026-04-05 Due date: 2026-05-05 Supplier: Ecloudvalley Vietnam Ltd Tax code: 0312345678 Bill To: Saigon Retail JSC Tax code: 0309876543 Address: 42 Nguyen Hue Boulevard, District 1, Ho Chi Minh City Reference: Master Services Agreement ECV-MSA-2026-014, Project Atlas | Line | Description | Amount | |------|------------------------------------------|---------------| | 1 | Managed cloud operations, April 2026 | 120,000,000 | | 2 | FinOps advisory, April 2026 | 45,000,000 | | 3 | AWS reserved instance management | 35,000,000 | Subtotal: 200,000,000 VND VAT 10%: 20,000,000 VND Total amount due: 220,000,000 VND Payment terms: net 30 days. Please remit to the bank account stated on the remittance advice and quote the invoice number as the payment reference. Issued by the Department of Finance, Ecloudvalley Vietnam Ltd.",
+      "tags": [
+        "invoice",
+        "en",
+        "multi-party",
+        "tax",
+        "vnd"
+      ],
+      "entities": [
+        {
+          "kind": "company",
+          "value": "Ecloudvalley Vietnam Ltd",
+          "confidence": 0.92
+        },
+        {
+          "kind": "company",
+          "value": "Saigon Retail JSC",
+          "confidence": 0.92
+        },
+        {
+          "kind": "date",
+          "value": "2026-04-05",
+          "confidence": 0.9
+        },
+        {
+          "kind": "amount",
+          "value": "220,000,000 VND",
+          "confidence": 0.9
+        },
+        {
+          "kind": "person",
+          "value": "Le Thi Hoa",
+          "confidence": 0.8
+        },
+        {
+          "kind": "project",
+          "value": "Atlas",
+          "confidence": 0.75
+        },
+        {
+          "kind": "department",
+          "value": "Finance",
+          "confidence": 0.7
+        }
+      ]
+    },
+    "id": "38743ba7cf72320f",
+    "fileName": "invoice-saigon-retail-2026-04.md",
+    "mimeType": "text/markdown",
+    "sizeBytes": 1026,
+    "sha256": "f2cdc4d2d29ab5d3dfebf962a5995aacfbbdb59197f98518fe24dba0b2395c5e",
+    "uploadedAt": "2026-08-11T07:26:50.299Z",
+    "ownerId": "6dddace7-2e9d-45f2-8381-b357f639d9d7",
+    "status": "completed"
+  },
+  {
+    "text": "KNOW YOUR CUSTOMER — ONBOARDING RECORD\n\nRecord reference: ECV-KYC-2026-009\nAssessment date: 2026-02-24\nPerformed by the Department of Compliance, Ecloudvalley Vietnam Ltd\n\n1. CUSTOMER DETAILS\n\nCustomer: VietBank Corp\nBusiness registration number: 0101234567\nRegistered address: 88 Ly Thuong Kiet, Hoan Kiem, Hanoi\nIndustry: banking and financial services\nRelationship type: managed cloud services customer\n\n2. IDENTITY VERIFICATION\n\nBusiness registration certificate verified against the national enterprise portal. Certificate of tax registration verified. Authorised signatory Mr. Tran Minh Duc verified by passport and by board resolution dated 2026-02-10. Verification method: documentary, with electronic confirmation from the issuing registry.\n\n3. BENEFICIAL OWNERSHIP\n\nBeneficial owner disclosure received. No individual holds more than fifteen percent of issued share capital. Ownership structure confirmed against the audited financial statements for 2025.\n\n4. SCREENING\n\nSanctions and politically exposed person screening completed with no matches. Adverse media screening completed with no material findings. Screening will repeat annually and on any change of signatory.\n\n5. RISK ASSESSMENT\n\nInherent risk is assessed as medium, reflecting the regulated nature of the customer's industry and the sensitivity of the data in scope for Project Meridian. Enhanced due diligence is not required. Ongoing monitoring is set to an annual review cycle.\n\n6. OUTCOME\n\nOnboarding approved on 2026-02-26 subject to standard contractual data protection terms. Next scheduled review: 2027-02-26.\n\nApproved by Ms. Nguyen Thi Lan, Head of Compliance.\n",
+    "textSource": "native",
+    "ocrConfidence": null,
+    "storedPath": "62a266c79a057a50.md",
+    "analysis": {
+      "type": "kyc",
+      "typeConfidence": 0.95,
+      "metadata": {
+        "title": "KNOW YOUR CUSTOMER — ONBOARDING RECORD",
+        "parties": [
+          "VietBank Corp"
+        ],
+        "documentDate": "2026-02-24",
+        "amount": null,
+        "currency": null,
+        "keywords": [
+          "customer",
+          "screening",
+          "registration",
+          "verified",
+          "against",
+          "approved",
+          "assessment",
+          "beneficial"
+        ],
+        "language": "en"
+      },
+      "summary": "Tài liệu loại kyc, liên quan VietBank Corp, ngày 2026-02-24. KNOW YOUR CUSTOMER — ONBOARDING RECORD Record reference: ECV-KYC-2026-009 Assessment date: 2026-02-24 Performed by the Department of Compliance, Ecloudvalley Vietnam Ltd 1. CUSTOMER DETAILS Customer: VietBank Corp Business registration number: 0101234567 Registered address: 88 Ly Thuong Kiet, Hoan Kiem, Hanoi Industry: banking and financial services Relationship type: managed cloud services customer 2. IDENTITY VERIFICATION Business registration certificate verified against the national enterprise portal.",
+      "tags": [
+        "kyc",
+        "en",
+        "customer",
+        "screening",
+        "registration"
+      ],
+      "entities": [
+        {
+          "kind": "company",
+          "value": "VietBank Corp",
+          "confidence": 0.92
+        },
+        {
+          "kind": "date",
+          "value": "2026-02-24",
+          "confidence": 0.9
+        },
+        {
+          "kind": "person",
+          "value": "Tran Minh Duc",
+          "confidence": 0.8
+        },
+        {
+          "kind": "person",
+          "value": "Nguyen Thi Lan",
+          "confidence": 0.8
+        },
+        {
+          "kind": "company",
+          "value": "Ecloudvalley Vietnam Ltd",
+          "confidence": 0.78
+        },
+        {
+          "kind": "project",
+          "value": "Meridian",
+          "confidence": 0.75
+        },
+        {
+          "kind": "department",
+          "value": "Compliance",
+          "confidence": 0.7
+        }
+      ]
+    },
+    "id": "62a266c79a057a50",
+    "fileName": "kyc-vietbank-onboarding.md",
+    "mimeType": "text/markdown",
+    "sizeBytes": 1648,
+    "sha256": "d3e3b2900e33e29eae1be0642cf7f1f035caf04cd4adba92505773ce8b0c39f1",
+    "uploadedAt": "2026-08-11T07:26:50.306Z",
+    "ownerId": "6dddace7-2e9d-45f2-8381-b357f639d9d7",
+    "status": "completed"
+  },
+  {
+    "text": "DATA RETENTION AND COMPLIANCE POLICY\n\nPolicy reference: ECV-POL-DR-04\nVersion 4.0, effective 2026-03-01\nOwner: Department of Information Security, Ecloudvalley Vietnam Ltd\n\n1. PURPOSE\n\nThis policy defines how long Ecloudvalley Vietnam Ltd retains customer and operational data, and the controls that apply during that period. It supports the company's ISO 27001 certification and its obligations under Vietnamese data protection law.\n\n2. SCOPE\n\nThis policy applies to all employees, contractors and systems that process customer data, including data held on behalf of customers under managed service agreements.\n\n3. RETENTION PERIODS\n\nContract and invoice records are retained for ten years from the end of the contract. Operational logs are retained for twelve months. Customer identity verification records are retained for five years after the business relationship ends. Backup copies follow the retention period of the source data.\n\n4. COMPLIANCE REQUIREMENTS\n\nData must not be transferred outside approved regions without a documented lawful basis. Access to customer data is restricted to personnel with a demonstrated business need and is reviewed quarterly. All access is logged and the logs are retained under section 3.\n\n5. DELETION\n\nAt the end of a retention period, data is deleted using approved secure erasure procedures. Deletion is recorded in the retention register maintained by the Department of Information Security.\n\n6. EXCEPTIONS\n\nAny exception to this policy is mandatory to document and must be approved in writing by the Chief Information Security Officer. Exceptions are reviewed at least annually.\n\n7. REVIEW\n\nThis policy is reviewed annually or following any material change to the regulatory environment. The next scheduled review is 2027-03-01.\n",
+    "textSource": "native",
+    "ocrConfidence": null,
+    "storedPath": "b114a05e354d5397.md",
+    "analysis": {
+      "type": "policy",
+      "typeConfidence": 0.86,
+      "metadata": {
+        "title": "DATA RETENTION AND COMPLIANCE POLICY",
+        "parties": [
+          "Ecloudvalley Vietnam Ltd"
+        ],
+        "documentDate": "2026-03-01",
+        "amount": null,
+        "currency": null,
+        "keywords": [
+          "data",
+          "policy",
+          "retention",
+          "customer",
+          "retained",
+          "approved",
+          "information",
+          "period"
+        ],
+        "language": "en"
+      },
+      "summary": "Tài liệu loại policy, liên quan Ecloudvalley Vietnam Ltd, ngày 2026-03-01. DATA RETENTION AND COMPLIANCE POLICY Policy reference: ECV-POL-DR-04 Version 4.0, effective 2026-03-01 Owner: Department of Information Security, Ecloudvalley Vietnam Ltd 1. PURPOSE This policy defines how long Ecloudvalley Vietnam Ltd retains customer and operational data, and the controls that apply during that period. SCOPE This policy applies to all employees, contractors and systems that process customer data, including data held on behalf of customers under managed service agreements.",
+      "tags": [
+        "policy",
+        "en",
+        "data",
+        "retention"
+      ],
+      "entities": [
+        {
+          "kind": "company",
+          "value": "Ecloudvalley Vietnam Ltd",
+          "confidence": 0.92
+        },
+        {
+          "kind": "date",
+          "value": "2026-03-01",
+          "confidence": 0.9
+        },
+        {
+          "kind": "department",
+          "value": "Information Security",
+          "confidence": 0.7
+        }
+      ]
+    },
+    "id": "b114a05e354d5397",
+    "fileName": "policy-data-retention-and-compliance.md",
+    "mimeType": "text/markdown",
+    "sizeBytes": 1776,
+    "sha256": "db4ed86fc8502666c89663338ba71ee3b627009407a624dab6ca137eaed66509",
+    "uploadedAt": "2026-08-11T07:26:50.312Z",
+    "ownerId": "6dddace7-2e9d-45f2-8381-b357f639d9d7",
+    "status": "completed"
+  },
+  {
+    "text": "QUARTERLY BUSINESS REPORT — Q1 2026\n\nReport reference: ECV-RPT-2026-Q1\nPrepared: 2026-04-10\nPrepared by the Department of Finance, Ecloudvalley Vietnam Ltd\n\n1. EXECUTIVE SUMMARY\n\nCloud services revenue for the first quarter of 2026 reached 4,100,000,000 VND, up eighteen percent against the same quarter last year. Growth was driven by managed operations renewals and by two new migration engagements. Gross margin improved by two percentage points as reserved instance coverage increased.\n\n2. REVENUE BY CUSTOMER\n\nSaigon Retail JSC contributed 660,000,000 VND across managed operations and FinOps advisory under Project Atlas. Hanoi Logistics Ltd contributed 528,000,000 VND following the start of Project Vanguard in February. VietBank Corp contributed 340,000,000 VND from the initial assessment phase of Project Meridian. The remaining revenue came from the long tail of smaller managed service customers.\n\n3. DELIVERY PERFORMANCE\n\nAll three major projects are on schedule. Project Atlas completed its second migration wave in March. Project Vanguard finished discovery and entered the build phase. Project Meridian remains in assessment pending completion of customer onboarding checks.\n\n4. OPERATIONAL METRICS\n\nPlatform availability across managed customers averaged 99.96 percent. Mean time to resolve priority one incidents was 41 minutes, within the contractual target. Two incidents breached the response target and both have documented corrective actions.\n\n5. RISKS AND OUTLOOK\n\nThe main risk to the Q2 forecast is the dependency of Project Meridian on regulatory approval at VietBank Corp. Pipeline coverage for Q2 stands at 1.4 times target, which the Department of Finance considers adequate.\n\n6. RECOMMENDATIONS\n\nIncrease reserved instance coverage ahead of the Q3 renewal cycle, and add a dedicated delivery lead to Project Meridian before the build phase begins.\n",
+    "textSource": "native",
+    "ocrConfidence": null,
+    "storedPath": "e48ddf8689d726ba.md",
+    "analysis": {
+      "type": "report",
+      "typeConfidence": 0.94,
+      "metadata": {
+        "title": "QUARTERLY BUSINESS REPORT — Q1 2026",
+        "parties": [
+          "Ecloudvalley Vietnam Ltd",
+          "Saigon Retail JSC",
+          "Hanoi Logistics Ltd"
+        ],
+        "documentDate": "2026-04-10",
+        "amount": 4100000000,
+        "currency": "VND",
+        "keywords": [
+          "project",
+          "managed",
+          "meridian",
+          "vnd",
+          "contributed",
+          "coverage",
+          "phase",
+          "revenue"
+        ],
+        "language": "en"
+      },
+      "summary": "Tài liệu loại report, liên quan Ecloudvalley Vietnam Ltd, Saigon Retail JSC, Hanoi Logistics Ltd, ngày 2026-04-10, giá trị 4,100,000,000 VND. REVENUE BY CUSTOMER Saigon Retail JSC contributed 660,000,000 VND across managed operations and FinOps advisory under Project Atlas. VietBank Corp contributed 340,000,000 VND from the initial assessment phase of Project Meridian. RECOMMENDATIONS Increase reserved instance coverage ahead of the Q3 renewal cycle, and add a dedicated delivery lead to Project Meridian before the build phase begins.",
+      "tags": [
+        "report",
+        "en",
+        "high-value",
+        "multi-party",
+        "project",
+        "managed",
+        "meridian"
+      ],
+      "entities": [
+        {
+          "kind": "company",
+          "value": "Ecloudvalley Vietnam Ltd",
+          "confidence": 0.92
+        },
+        {
+          "kind": "company",
+          "value": "Saigon Retail JSC",
+          "confidence": 0.92
+        },
+        {
+          "kind": "company",
+          "value": "Hanoi Logistics Ltd",
+          "confidence": 0.92
+        },
+        {
+          "kind": "date",
+          "value": "2026-04-10",
+          "confidence": 0.9
+        },
+        {
+          "kind": "amount",
+          "value": "4,100,000,000 VND",
+          "confidence": 0.9
+        },
+        {
+          "kind": "company",
+          "value": "VietBank Corp",
+          "confidence": 0.78
+        },
+        {
+          "kind": "project",
+          "value": "Atlas",
+          "confidence": 0.75
+        },
+        {
+          "kind": "project",
+          "value": "Vanguard",
+          "confidence": 0.75
+        },
+        {
+          "kind": "project",
+          "value": "Meridian",
+          "confidence": 0.75
+        },
+        {
+          "kind": "department",
+          "value": "Finance",
+          "confidence": 0.7
+        }
+      ]
+    },
+    "id": "e48ddf8689d726ba",
+    "fileName": "report-q1-2026-cloud-services.md",
+    "mimeType": "text/markdown",
+    "sizeBytes": 1882,
+    "sha256": "f50a0df1ce32186a9f926f3d68f9c86eb212e10bff984777e3f2642bc512000e",
+    "uploadedAt": "2026-08-11T07:26:50.320Z",
+    "ownerId": "6dddace7-2e9d-45f2-8381-b357f639d9d7",
+    "status": "completed"
+  }
+]
