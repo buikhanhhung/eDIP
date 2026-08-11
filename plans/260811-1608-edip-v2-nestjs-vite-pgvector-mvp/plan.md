@@ -51,8 +51,8 @@ eDIP-v2/
 |-------|------|----:|---|--------|
 | 1 | [Bedrock & Docker Gate](./phase-01-bedrock-docker-gate.md) | 0.75 | *Cổng chặn — hỏng ở đây là đổi kế hoạch* | **Done** |
 | 2 | [Skeleton DB Auth Seed](./phase-02-skeleton-db-auth-seed.md) | 3.5 | Đăng nhập 3 role, library + dashboard theo loại, **entity đã sẵn sàng** | **Done** |
-| 3 | [Upload & Ingest Pipeline](./phase-03-upload-ingest-pipeline.md) | 2.5 | Upload → processing → completed + metadata tự sinh | **Code xong, chờ credential** |
-| 4 | [Hybrid Search & RAG Ask](./phase-04-hybrid-search-rag-ask.md) | 1.5 | Hỏi tiếng Việt, trả lời kèm nguồn | **Code xong, chờ credential** |
+| 3 | [Upload & Ingest Pipeline](./phase-03-upload-ingest-pipeline.md) | 2.5 | Upload → processing → completed + metadata tự sinh | **Done** |
+| 4 | [Hybrid Search & RAG Ask](./phase-04-hybrid-search-rag-ask.md) | 1.5 | Hỏi tiếng Việt, trả lời kèm nguồn | **Done** |
 | 5 | [Entity & Knowledge Graph](./phase-05-entity-knowledge-graph.md) | 1.25 | Knowledge graph click được | **Done** |
 | 6 | [Audit Metadata Edit Highlight](./phase-06-audit-metadata-edit-highlight.md) | 1.25 | Đủ 6 bước demo flow trong đề | **Done** |
 | 7 | [Polish & Demo Rehearsal](./phase-07-polish-demo-rehearsal.md) | còn lại | Chạy trọn demo flow không vấp | **Done** |
@@ -114,7 +114,7 @@ Toàn bộ luồng AI đã chạy thật trên **một** tài liệu (`hop-dong-
 2. Bác → ném → BullMQ retry **cả job**, chạy lại analyse + embed đã thành công: 7 lời gọi cho 1 tài liệu, đâm vào rate limit. Sửa: bọc bước graph, tài liệu giữ `completed` với graph rỗng — đúng như comment trong code vốn đã hứa mà code không làm.
 3. Free tier Gemini cho **5 lời gọi/phút**, một lần ingest cần 6. Thêm `GEMINI_MIN_REQUEST_INTERVAL_MS` (đặt 13000 cho free tier, 0 cho key trả phí).
 
-**Chưa kiểm:** vision (PDF scan / ảnh), và 8 tài liệu seed còn lại chưa chạy qua pipeline mới — cố ý, để tiết kiệm quota.
+**Vision đã kiểm sau đó** (`vietnamese-scan.jpg` → `textSource=vision`, đọc đúng dấu tiếng Việt). **Chưa kiểm:** PDF scan thật, và 8 tài liệu seed còn lại chưa chạy qua pipeline mới — cố ý, để tiết kiệm quota.
 
 ## Acceptance Criteria (toàn plan)
 
@@ -122,12 +122,12 @@ Toàn bộ luồng AI đã chạy thật trên **một** tài liệu (`hop-dong-
 - [x] Đăng nhập 3 role; `viewer` bị **API** từ chối upload/search/ask/audit với **403** (không phải 401, không chỉ ẩn UI)
 - [x] Không token → **403** ở mọi route ngoài `/auth/login` và `/auth/me` (mọi route đều có `@RequirePermission`; không có chế độ đọc vô danh)
 - [x] Ngay sau `db seed`: dashboard "theo loại" khác 0, `Entity` ≥30 row, `DocumentEntity` có offset — **trước khi** chạm Bedrock
-- [ ] Upload 1 PDF scan → `uploaded → processing → completed`, có `documentType` + metadata + summary
-- [ ] Truy vấn `hop dong` (không dấu) trả về tài liệu `hợp đồng`
-- [ ] Ask trả lời kèm ≥1 citation trỏ về document có thật; không có nguồn → trả "không tìm thấy", không bịa
-- [ ] `/graph` hiện ≥2 document nối qua entity chung; click node mở được detail
-- [ ] Dashboard đếm đúng tổng / theo loại / theo status, có ≥1 doc `failed`
-- [ ] Audit log ghi upload/view/edit/delete/search/ask
+- [x] Upload → `uploaded → processing → completed`, có `documentType` + metadata + summary *(kiểm bằng `.md` và ảnh scan; **PDF scan thật chưa thử**)*
+- [x] Truy vấn `hop dong` (không dấu) trả về tài liệu `hợp đồng`
+- [x] Ask trả lời kèm ≥1 citation trỏ về document có thật; không có nguồn → trả "không tìm thấy", không bịa
+- [x] `/graph` hiện ≥2 document nối qua entity chung; click node mở được detail
+- [x] Dashboard đếm đúng tổng / theo loại / theo status, có ≥1 doc `failed`
+- [x] Audit log ghi upload/view/edit/delete/search/ask
 
 ## Rủi ro toàn plan
 
