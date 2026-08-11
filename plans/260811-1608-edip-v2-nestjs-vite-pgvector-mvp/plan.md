@@ -92,6 +92,30 @@ Cross-plan: không có plan nào khác trong `$ROOT/plans/`. Plan của `$V1` (`
 | RRF | `k=5`, **2 nhánh** (bỏ metadata ILIKE) | `k=60` là hằng số quy mô TREC |
 | Snippet | Cắt trong TypeScript, **không** `ts_headline` | Xem phase 4 §3 |
 
+## Chạy thật lần đầu với model — 12/08, Gemini
+
+Toàn bộ luồng AI đã chạy thật trên **một** tài liệu (`hop-dong-dich-vu-hanoi-logistics.md`, 1.348 ký tự, 2 chunk), provider `gemini`.
+
+| Luồng | Kết quả |
+|---|---|
+| Embedding 1024 chiều | ✅ `outputDimensionality: 1024` của `gemini-embedding-001` chạy đúng, qua assert |
+| Phân loại + metadata | ✅ `contract`, title đúng, `parties`, `date`, `amount 1,850,000,000 VND`, keywords |
+| Tóm tắt | ✅ tiếng Việt, bám nội dung |
+| Trích thực thể | ✅ **10 thực thể, 9 định vị được bằng offset** |
+| Quan hệ có kiểu | ✅ **9 quan hệ, 0 bị bỏ**, mỗi cạnh kèm câu văn nguyên văn |
+| Search lai ghép | ✅ `degraded: false`, tài liệu lên rank 1 từ **cả hai** nhánh |
+| Ask có nguồn | ✅ trả lời đúng kèm citation trỏ tài liệu thật |
+| Ask không có nguồn | ✅ trả đúng "Không tìm thấy thông tin này trong kho tài liệu.", `citations: []` |
+| Graph có nhãn | ✅ 7 cạnh `relates` hiện trên `/graph?relations=true` |
+
+**Ba lỗi thật lộ ra ngay lần chạy đầu** — không cách nào tìm được nếu chỉ build mà không có key:
+
+1. Nhãn quan hệ có dấu (`CUNG_CẤP_DỊCH_VỤ_CHO`) bị regex bác → mất cả chunk. Sửa: **chuẩn hoá thay vì bác**.
+2. Bác → ném → BullMQ retry **cả job**, chạy lại analyse + embed đã thành công: 7 lời gọi cho 1 tài liệu, đâm vào rate limit. Sửa: bọc bước graph, tài liệu giữ `completed` với graph rỗng — đúng như comment trong code vốn đã hứa mà code không làm.
+3. Free tier Gemini cho **5 lời gọi/phút**, một lần ingest cần 6. Thêm `GEMINI_MIN_REQUEST_INTERVAL_MS` (đặt 13000 cho free tier, 0 cho key trả phí).
+
+**Chưa kiểm:** vision (PDF scan / ảnh), và 8 tài liệu seed còn lại chưa chạy qua pipeline mới — cố ý, để tiết kiệm quota.
+
 ## Acceptance Criteria (toàn plan)
 
 - [x] `docker compose up` → Postgres(pgvector) + Redis lên; `pnpm prisma migrate deploy` pass
