@@ -1,11 +1,17 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { FALKORDB_CLIENT } from '@infrastructure/falkordb/falkordb.di-token';
 import type { IFalkorDbClient } from '@infrastructure/falkordb/falkordb.port';
-import { PrismaService } from '@shared/database/prisma.service';
-import type { EntityMention } from '../entity-linker';
-import { GRAPH_ENTITY_TYPES, type EntityType } from '../entity-normalizer';
+import { decideDedupe, type VectorMatch } from '../entity-dedup';
+import {
+  GRAPH_ENTITY_TYPES,
+  normalizeEntityName,
+  type EntityType,
+} from '../entity-normalizer';
 import type {
+  DocumentProjection,
   EntityCandidate,
+  EntityMention,
   GetGraphOptions,
   GraphEdge,
   GraphNode,
@@ -14,7 +20,9 @@ import type {
   RelationInput,
   ResolvedEntity,
 } from '../graph.port';
-import { PostgresGraphStore } from './postgres-graph.store';
+
+/** Neighbours pulled before the type filter is applied in TypeScript. */
+const VECTOR_CANDIDATES = 5;
 
 interface MentionRow {
   documentId: string;
@@ -26,153 +34,276 @@ interface MentionRow {
   docCount: number;
 }
 
-interface RelationRow {
-  id: string;
-  sourceEntityId: string;
-  targetEntityId: string;
-  type: string;
-  description: string;
-  evidence: string;
-  documentId: string;
-  confidence: number | null;
-}
-
 /**
- * FalkorDB-backed graph, layered over the Postgres store.
+ * The knowledge graph, held entirely in FalkorDB.
  *
- * Writes go to Postgres first and are then mirrored into the graph. Postgres
- * stays the source of truth because two features outside the graph depend on
- * it: source highlighting reads character offsets from `DocumentEntity`, and
- * deleting a document relies on foreign-key cascade. Making FalkorDB
- * authoritative would mean reimplementing both, and holding referential
- * integrity by hand across two stores.
+ * Entities, their mentions and the relations between them have no Postgres
+ * table — this is their only home, as in ECVBot. What Postgres still owns is
+ * the source record: the `Document` row, its text, its metadata. `:Document`
+ * nodes here are a projection of those rows, carrying just enough (label,
+ * status, type) for the graph to filter and label itself without a join back.
  *
- * Reads are pure Cypher. That is the point of switching: traversals the SQL
- * version expresses as joins become path patterns, and variable-length hops
- * become possible at all.
- *
- * A mirror failure is logged rather than thrown. The write already succeeded
- * in the store that owns it, and failing the request afterwards would leave
- * the caller believing nothing happened. `pnpm graph:sync` repairs drift.
+ * The consequence to keep in mind: nothing enforces referential integrity
+ * between the two stores. Deleting a document row must delete its node here
+ * too, which `deleteDocument` does explicitly, because there is no cascade to
+ * do it for us.
  */
 @Injectable()
 export class FalkorGraphStore implements IGraphStore {
   private readonly logger = new Logger(FalkorGraphStore.name);
 
-  constructor(
-    private readonly postgres: PostgresGraphStore,
-    private readonly prisma: PrismaService,
-    @Inject(FALKORDB_CLIENT) private readonly falkor: IFalkorDbClient,
-  ) {}
+  constructor(@Inject(FALKORDB_CLIENT) private readonly falkor: IFalkorDbClient) {}
 
-  // ---- writes: Postgres owns, FalkorDB mirrors ----------------------------
+  // ---- documents ----------------------------------------------------------
 
-  async upsertDocumentEntities(documentId: string, text: string, entities: EntityMention[]) {
-    const result = await this.postgres.upsertDocumentEntities(documentId, text, entities);
-    await this.mirrorDocument(documentId);
-    return result;
+  async projectDocument(document: DocumentProjection): Promise<void> {
+    await this.falkor.query(
+      `MERGE (d:Document {id: $id})
+       SET d.label = $label, d.title = $title, d.filename = $filename,
+           d.document_type = $documentType, d.status = $status`,
+      {
+        id: document.id,
+        label: document.title ?? document.filename,
+        title: document.title,
+        filename: document.filename,
+        documentType: document.documentType,
+        status: document.status,
+      },
+    );
   }
 
+  /** Removes the node and, with it, every mention and relation hanging off it. */
+  async deleteDocument(documentId: string): Promise<void> {
+    await this.falkor.query(
+      `MATCH ()-[r:RELATES {document_id: $documentId}]->() DELETE r`,
+      { documentId },
+    );
+    await this.falkor.query(`MATCH (d:Document {id: $documentId}) DETACH DELETE d`, {
+      documentId,
+    });
+    this.logger.log(`removed document ${documentId} from the graph`);
+  }
+
+  // ---- entities -----------------------------------------------------------
+
   async resolveEntity(candidate: EntityCandidate): Promise<ResolvedEntity> {
-    const resolved = await this.postgres.resolveEntity(candidate);
-    await this.mirrorEntity(resolved.entityId);
-    return resolved;
+    const normalizedName = normalizeEntityName(candidate.name);
+    if (!normalizedName) {
+      throw new Error(`Entity name "${candidate.name}" normalises to nothing`);
+    }
+
+    const exactRows = await this.falkor.query<{ id: string }>(
+      `MATCH (e:Entity {normalized_name: $normalizedName, type: $type}) RETURN e.id AS id LIMIT 1`,
+      { normalizedName, type: candidate.type },
+    );
+    const exact = exactRows[0] ? { entityId: exactRows[0].id } : null;
+
+    const nearest = exact ? null : await this.findNearestEntity(candidate);
+    const plan = decideDedupe(
+      { name: candidate.name, type: candidate.type },
+      exact,
+      nearest,
+    );
+
+    if (plan.action === 'REUSE') {
+      if (candidate.description) {
+        await this.falkor.query(
+          `MATCH (e:Entity {id: $id}) SET e.description = $description`,
+          { id: plan.matchedEntityId!, description: candidate.description },
+        );
+      }
+      return { entityId: plan.matchedEntityId!, action: plan.action, reason: plan.reason };
+    }
+
+    if (plan.action === 'MERGE_AS_ALIAS') {
+      // The canonical name is left alone: a merge must not rename the node
+      // under everyone who already knows it. The absorbed spelling is recorded
+      // so the merge can be inspected, and undone, later.
+      await this.falkor.query(
+        `MATCH (e:Entity {id: $id})
+         SET e.aliases = CASE
+           WHEN e.aliases IS NULL THEN [$alias]
+           WHEN $alias IN e.aliases THEN e.aliases
+           ELSE e.aliases + [$alias]
+         END`,
+        { id: plan.matchedEntityId!, alias: candidate.name.trim() },
+      );
+      this.logger.log(`merged "${candidate.name}" into ${plan.matchedEntityId} — ${plan.reason}`);
+      return { entityId: plan.matchedEntityId!, action: plan.action, reason: plan.reason };
+    }
+
+    const id = randomUUID();
+    await this.falkor.query(
+      `CREATE (e:Entity {
+         id: $id, type: $type, entity_name: $entityName,
+         normalized_name: $normalizedName, description: $description, aliases: []
+       })`,
+      {
+        id,
+        type: candidate.type,
+        entityName: candidate.name.trim(),
+        normalizedName,
+        description: candidate.description ?? null,
+      },
+    );
+
+    if (candidate.embedding) {
+      await this.falkor.query(
+        `MATCH (e:Entity {id: $id}) SET e.name_embedding = vecf32($embedding)`,
+        { id, embedding: candidate.embedding },
+      );
+    }
+
+    return { entityId: id, action: plan.action, reason: plan.reason };
+  }
+
+  /**
+   * Nearest same-type entity by name embedding.
+   *
+   * The index cannot filter by type, so candidates are pulled and filtered
+   * here — a closer wrong-type neighbour must not hide the right one behind a
+   * `LIMIT 1`. FalkorDB returns cosine distance; the dedup threshold is
+   * expressed as similarity, hence `1 - score`.
+   */
+  private async findNearestEntity(candidate: EntityCandidate): Promise<VectorMatch | null> {
+    if (!candidate.embedding) return null;
+
+    try {
+      const rows = await this.falkor.query<{ id: string; type: string; score: number }>(
+        `CALL db.idx.vector.queryNodes('Entity', 'name_embedding', $k, vecf32($embedding))
+         YIELD node, score
+         RETURN node.id AS id, node.type AS type, score AS score`,
+        { k: VECTOR_CANDIDATES, embedding: candidate.embedding },
+      );
+
+      const match = rows.find((row) => row.type === candidate.type);
+      if (!match) return null;
+      return { entityId: match.id, type: match.type, similarity: 1 - Number(match.score) };
+    } catch (error) {
+      // An empty or missing vector index is not a failure worth losing the
+      // extraction over: dedup falls back to exact-name matching, which
+      // produces duplicates a human can merge.
+      this.logger.warn(`vector dedup lookup failed, falling back to exact match: ${(error as Error).message}`);
+      return null;
+    }
   }
 
   async linkMention(
     documentId: string,
     entityId: string,
-    mentionText: string,
-    documentText: string,
-    confidence?: number,
-  ) {
-    const result = await this.postgres.linkMention(
-      documentId,
-      entityId,
-      mentionText,
-      documentText,
-      confidence,
+    mention: EntityMention,
+  ): Promise<{ located: boolean }> {
+    await this.falkor.query(
+      `MATCH (d:Document {id: $documentId}), (e:Entity {id: $entityId})
+       MERGE (d)-[m:MENTIONS {mention_text: $mentionText}]->(e)
+       SET m.char_start = $charStart, m.char_end = $charEnd, m.confidence = $confidence`,
+      {
+        documentId,
+        entityId,
+        mentionText: mention.mentionText,
+        charStart: mention.charStart,
+        charEnd: mention.charEnd,
+        confidence: mention.confidence ?? null,
+      },
     );
-
-    await this.safeMirror('linkMention', async () => {
-      await this.mirrorDocumentNode(documentId);
-      await this.falkor.query(
-        `MATCH (d:Document {id: $documentId}), (e:Entity {id: $entityId})
-         MERGE (d)-[:MENTIONS]->(e)`,
-        { documentId, entityId },
-      );
-    });
-
-    return result;
+    return { located: mention.charStart !== null };
   }
 
-  async replaceRelations(documentId: string, relations: RelationInput[]): Promise<number> {
-    const written = await this.postgres.replaceRelations(documentId, relations);
-
-    await this.safeMirror('replaceRelations', async () => {
-      // Purge this document's edges before writing, exactly as the SQL side
-      // does: a re-run must replace its own work, not add to it.
+  async unlinkMentions(documentId: string, types?: readonly EntityType[]): Promise<void> {
+    if (types) {
       await this.falkor.query(
-        `MATCH ()-[r:RELATES {document_id: $documentId}]->() DELETE r`,
-        { documentId },
+        `MATCH (:Document {id: $documentId})-[m:MENTIONS]->(e:Entity)
+         WHERE e.type IN $types DELETE m`,
+        { documentId, types: [...types] },
       );
-
-      const rows = await this.prisma.entityRelation.findMany({
-        where: { documentId },
-        select: {
-          id: true,
-          sourceEntityId: true,
-          targetEntityId: true,
-          type: true,
-          description: true,
-          evidence: true,
-          confidence: true,
-        },
-      });
-
-      for (const row of rows) {
-        await this.falkor.query(
-          `MATCH (a:Entity {id: $sourceId}), (b:Entity {id: $targetId})
-           MERGE (a)-[r:RELATES {id: $id}]->(b)
-           SET r.type = $type, r.description = $description, r.evidence = $evidence,
-               r.document_id = $documentId, r.confidence = $confidence`,
-          {
-            id: row.id,
-            sourceId: row.sourceEntityId,
-            targetId: row.targetEntityId,
-            type: row.type,
-            description: row.description,
-            evidence: row.evidence,
-            documentId,
-            confidence: row.confidence,
-          },
-        );
-      }
+      return;
+    }
+    await this.falkor.query(`MATCH (:Document {id: $documentId})-[m:MENTIONS]->() DELETE m`, {
+      documentId,
     });
+  }
 
+  async getEntitiesForDocument(documentId: string) {
+    return this.falkor.query<{
+      id: string;
+      type: string;
+      displayName: string;
+      mentionText: string;
+      charStart: number | null;
+      charEnd: number | null;
+      confidence: number | null;
+    }>(
+      `MATCH (:Document {id: $documentId})-[m:MENTIONS]->(e:Entity)
+       RETURN e.id AS id, e.type AS type, e.entity_name AS displayName,
+              m.mention_text AS mentionText, m.char_start AS charStart,
+              m.char_end AS charEnd, m.confidence AS confidence
+       ORDER BY m.char_start`,
+      { documentId },
+    );
+  }
+
+  // ---- relations ----------------------------------------------------------
+
+  async replaceRelations(
+    documentId: string,
+    documentText: string,
+    relations: RelationInput[],
+  ): Promise<number> {
+    await this.falkor.query(
+      `MATCH ()-[r:RELATES {document_id: $documentId}]->() DELETE r`,
+      { documentId },
+    );
+    if (relations.length === 0) return 0;
+
+    let written = 0;
+    for (const relation of relations) {
+      // Self-loops carry no information and clutter the canvas.
+      if (relation.sourceEntityId === relation.targetEntityId) continue;
+
+      // The evidence position is measured here, never taken from the model.
+      const evidenceStart = documentText.indexOf(relation.evidence);
+
+      await this.falkor.query(
+        `MATCH (a:Entity {id: $sourceId}), (b:Entity {id: $targetId})
+         MERGE (a)-[r:RELATES {document_id: $documentId, type: $type}]->(b)
+         SET r.id = $id, r.description = $description, r.evidence = $evidence,
+             r.evidence_start = $evidenceStart, r.evidence_end = $evidenceEnd,
+             r.confidence = $confidence`,
+        {
+          id: randomUUID(),
+          sourceId: relation.sourceEntityId,
+          targetId: relation.targetEntityId,
+          documentId,
+          type: relation.type,
+          description: relation.description,
+          evidence: relation.evidence,
+          evidenceStart: evidenceStart >= 0 ? evidenceStart : null,
+          evidenceEnd: evidenceStart >= 0 ? evidenceStart + relation.evidence.length : null,
+          confidence: relation.confidence ?? null,
+        },
+      );
+      written += 1;
+    }
+
+    this.logger.log(`wrote ${written} relations for ${documentId}`);
     return written;
   }
 
-  async deleteByDocument(documentId: string, types?: readonly EntityType[]): Promise<void> {
-    await this.postgres.deleteByDocument(documentId, types);
-    await this.mirrorDocument(documentId);
-  }
-
-  // ---- reads: Cypher ------------------------------------------------------
+  // ---- reads --------------------------------------------------------------
 
   async getGraph({ minShared, types, includeRelations }: GetGraphOptions): Promise<GraphPayload> {
     const allowed = [...((types ?? GRAPH_ENTITY_TYPES) as readonly EntityType[])];
 
-    // The shared-entity filter is a single aggregation over the pattern, where
-    // the SQL version needs a CTE plus three joins.
+    // One aggregation over a path pattern, where the SQL version needed a CTE
+    // and three joins.
     const rows = await this.falkor.query<MentionRow>(
       `MATCH (d:Document {status: 'completed'})-[:MENTIONS]->(e:Entity)
        WHERE e.type IN $types
        WITH e, count(DISTINCT d) AS docCount
        WHERE docCount >= $minShared
        MATCH (doc:Document {status: 'completed'})-[:MENTIONS]->(e)
-       RETURN doc.id AS documentId, doc.label AS documentLabel,
-              e.id AS entityId, e.display_name AS entityLabel, e.type AS entityType,
+       RETURN DISTINCT doc.id AS documentId, doc.label AS documentLabel,
+              e.id AS entityId, e.entity_name AS entityLabel, e.type AS entityType,
               e.description AS entityDescription, docCount AS docCount`,
       { types: allowed, minShared },
     );
@@ -195,6 +326,9 @@ export class FalkorGraphStore implements IGraphStore {
         },
       });
 
+      // Keyed by the pair: a document mentioning one entity under two
+      // spellings is two MENTIONS edges but one line on the canvas, and two
+      // edges sharing an id blank cytoscape.
       const id = `${row.documentId}__${row.entityId}`;
       edges.set(id, {
         data: { id, source: row.documentId, target: row.entityId, kind: 'mentions' },
@@ -203,11 +337,19 @@ export class FalkorGraphStore implements IGraphStore {
 
     if (includeRelations) {
       const present = [...nodes.keys()];
-      const relations = await this.falkor.query<RelationRow>(
+      const relations = await this.falkor.query<{
+        id: string;
+        sourceEntityId: string;
+        targetEntityId: string;
+        type: string;
+        evidence: string;
+        documentId: string;
+        confidence: number | null;
+      }>(
         `MATCH (a:Entity)-[r:RELATES]->(b:Entity)
          WHERE a.id IN $ids AND b.id IN $ids
          RETURN r.id AS id, a.id AS sourceEntityId, b.id AS targetEntityId,
-                r.type AS type, r.description AS description, r.evidence AS evidence,
+                r.type AS type, r.evidence AS evidence,
                 r.document_id AS documentId, r.confidence AS confidence`,
         { ids: present },
       );
@@ -228,7 +370,7 @@ export class FalkorGraphStore implements IGraphStore {
       }
     }
 
-    this.logger.log(`falkor graph(minShared=${minShared}): ${nodes.size} nodes, ${edges.size} edges`);
+    this.logger.log(`graph(minShared=${minShared}): ${nodes.size} nodes, ${edges.size} edges`);
     return { nodes: [...nodes.values()], edges: [...edges.values()] };
   }
 
@@ -260,97 +402,18 @@ export class FalkorGraphStore implements IGraphStore {
       `MATCH (e:Entity {id: $entityId})-[r:RELATES]->(other:Entity)
        RETURN r.id AS id, r.type AS type, r.description AS description, r.evidence AS evidence,
               r.document_id AS documentId, other.id AS otherEntityId,
-              other.display_name AS otherEntityName, 'out' AS direction
+              other.entity_name AS otherEntityName, 'out' AS direction
        UNION
        MATCH (other:Entity)-[r:RELATES]->(e:Entity {id: $entityId})
        RETURN r.id AS id, r.type AS type, r.description AS description, r.evidence AS evidence,
               r.document_id AS documentId, other.id AS otherEntityId,
-              other.display_name AS otherEntityName, 'in' AS direction`,
+              other.entity_name AS otherEntityName, 'in' AS direction`,
       { entityId },
     );
 
-    return rows.map((row) => ({ ...row, direction: row.direction === 'out' ? ('out' as const) : ('in' as const) }));
-  }
-
-  // ---- mirroring ----------------------------------------------------------
-
-  /** Rewrites one document's node and mention edges from Postgres. */
-  private async mirrorDocument(documentId: string): Promise<void> {
-    await this.safeMirror('mirrorDocument', async () => {
-      await this.mirrorDocumentNode(documentId);
-
-      const links = await this.prisma.documentEntity.findMany({
-        where: { documentId },
-        select: { entityId: true },
-        distinct: ['entityId'],
-      });
-
-      await this.falkor.query(
-        `MATCH (:Document {id: $documentId})-[m:MENTIONS]->() DELETE m`,
-        { documentId },
-      );
-
-      for (const link of links) {
-        await this.mirrorEntity(link.entityId);
-        await this.falkor.query(
-          `MATCH (d:Document {id: $documentId}), (e:Entity {id: $entityId})
-           MERGE (d)-[:MENTIONS]->(e)`,
-          { documentId, entityId: link.entityId },
-        );
-      }
-    });
-  }
-
-  private async mirrorDocumentNode(documentId: string): Promise<void> {
-    const document = await this.prisma.document.findUnique({
-      where: { id: documentId },
-      select: { id: true, title: true, filename: true, documentType: true, status: true },
-    });
-    if (!document) return;
-
-    await this.falkor.query(
-      `MERGE (d:Document {id: $id})
-       SET d.label = $label, d.title = $title, d.filename = $filename,
-           d.document_type = $documentType, d.status = $status`,
-      {
-        id: document.id,
-        label: document.title ?? document.filename,
-        title: document.title,
-        filename: document.filename,
-        documentType: document.documentType,
-        status: document.status,
-      },
-    );
-  }
-
-  private async mirrorEntity(entityId: string): Promise<void> {
-    const entity = await this.prisma.entity.findUnique({
-      where: { id: entityId },
-      select: { id: true, type: true, displayName: true, normalizedName: true, description: true },
-    });
-    if (!entity) return;
-
-    await this.falkor.query(
-      `MERGE (e:Entity {id: $id})
-       SET e.type = $type, e.display_name = $displayName,
-           e.normalized_name = $normalizedName, e.description = $description`,
-      {
-        id: entity.id,
-        type: entity.type,
-        displayName: entity.displayName,
-        normalizedName: entity.normalizedName,
-        description: entity.description,
-      },
-    );
-  }
-
-  private async safeMirror(operation: string, run: () => Promise<void>): Promise<void> {
-    try {
-      await run();
-    } catch (error) {
-      this.logger.error(
-        `graph mirror failed during ${operation}; Postgres is still correct, run "pnpm graph:sync" to repair: ${(error as Error).message}`,
-      );
-    }
+    return rows.map((row) => ({
+      ...row,
+      direction: row.direction === 'out' ? ('out' as const) : ('in' as const),
+    }));
   }
 }

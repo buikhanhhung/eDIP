@@ -13,7 +13,6 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "backfill:embeddings": "ts-node -r tsconfig-paths/register scripts/backfill-embeddings.ts",
-    "graph:sync": "ts-node -r tsconfig-paths/register scripts/sync-graph-to-falkordb.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",

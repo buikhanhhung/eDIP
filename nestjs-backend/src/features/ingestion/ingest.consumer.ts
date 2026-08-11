@@ -1,5 +1,5 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type { Job } from 'bullmq';
 import { BedrockEmbeddingService } from '@infrastructure/bedrock/bedrock-embedding.service';
@@ -8,6 +8,8 @@ import { LocalStorageService } from '@infrastructure/storage/local-storage.servi
 import { VectorStoreService } from '@infrastructure/vector-store/vector-store.service';
 import { PrismaService } from '@shared/database/prisma.service';
 import { QUEUE_NAMES } from '@shared/queue/queue.constants';
+import { GRAPH_STORE } from '@features/graph/graph.di-token';
+import type { IGraphStore } from '@features/graph/graph.port';
 import { DocumentAnalysisService } from './services/document-analysis.service';
 import { EntityExtractionService } from './services/entity-extraction.service';
 import { TextExtractionService } from './services/text-extraction.service';
@@ -42,6 +44,7 @@ export class IngestConsumer extends WorkerHost {
     private readonly vectorStore: VectorStoreService,
     private readonly embeddings: BedrockEmbeddingService,
     private readonly graphExtraction: EntityExtractionService,
+    @Inject(GRAPH_STORE) private readonly graph: IGraphStore,
   ) {
     super();
   }
@@ -126,6 +129,16 @@ export class IngestConsumer extends WorkerHost {
       // pipeline, which runs after the document row is complete: a failure
       // here leaves a readable, searchable document with an empty graph,
       // rather than discarding an extraction that already succeeded.
+      // The graph filters on document status and labels nodes with the title,
+      // so the node has to be refreshed before anything is attached to it.
+      await this.graph.projectDocument({
+        id: documentId,
+        title: analysis.title,
+        filename: document.filename,
+        documentType: analysis.documentType,
+        status: 'completed',
+      });
+
       step('extract-graph');
       const graph = await this.graphExtraction.extractForDocument(
         documentId,

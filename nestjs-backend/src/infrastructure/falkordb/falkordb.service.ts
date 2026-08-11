@@ -17,6 +17,9 @@ const SAFE_GRAPH_NAME = /^[A-Za-z0-9_]{1,64}$/;
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 
+/** Must match the embedding model output and the pgvector column width. */
+const EMBEDDING_DIMENSION = 1024;
+
 @Injectable()
 export class FalkorDbService implements IFalkorDbClient, OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FalkorDbService.name);
@@ -62,15 +65,20 @@ export class FalkorDbService implements IFalkorDbClient, OnModuleInit, OnModuleD
   }
 
   /**
-   * Property indexes only. ECVBot also builds vector and fulltext indexes over
-   * the graph because it retrieves through them; here retrieval still runs on
-   * pgvector, so those indexes would be maintenance with no reader.
+   * Property indexes plus the vector index over entity names.
+   *
+   * The vector index is not decoration: entity dedup asks for the nearest
+   * neighbour of every extracted name, and without it that becomes a full scan
+   * of the entity set on every mention.
    */
   async ensureSchema(): Promise<void> {
     const statements = [
       'CREATE INDEX FOR (e:Entity) ON (e.id)',
       'CREATE INDEX FOR (e:Entity) ON (e.normalized_name)',
+      'CREATE INDEX FOR (e:Entity) ON (e.type)',
       'CREATE INDEX FOR (d:Document) ON (d.id)',
+      `CREATE VECTOR INDEX FOR (e:Entity) ON (e.name_embedding) ` +
+        `OPTIONS {dimension: ${EMBEDDING_DIMENSION}, similarityFunction: 'cosine'}`,
     ];
 
     for (const statement of statements) {

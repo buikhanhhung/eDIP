@@ -15,9 +15,9 @@ export const envSchema = z.object({
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().int().positive().default(6383),
 
-  // Graph store. `postgres` keeps the graph in the main database; `falkordb`
-  // answers graph reads from Cypher while Postgres stays the source of truth.
-  GRAPH_STORE_DRIVER: z.enum(['postgres', 'falkordb']).default('postgres'),
+  // The knowledge graph lives here and nowhere else — entities, mentions and
+  // relations have no Postgres table. The API still boots when FalkorDB is
+  // down; the graph and document-detail entity list are what stop working.
   FALKORDB_HOST: z.string().default('localhost'),
   FALKORDB_PORT: z.coerce.number().int().positive().default(6384),
   FALKORDB_GRAPH: z.string().default('edip'),

@@ -1,10 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, type Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import 'dotenv/config';
-import { linkDocumentEntities } from '../src/features/graph/entity-linker';
+import { FalkorDB } from 'falkordb';
+import { coerceEntityType, normalizeEntityName } from '../src/features/graph/entity-normalizer';
 
 /**
  * Seeds the demo corpus carried over from eDIP v1, including the analysis v1
@@ -14,6 +16,11 @@ import { linkDocumentEntities } from '../src/features/graph/entity-linker';
  * reproduce data already on disk, and would leave the dashboard, the knowledge
  * graph and source highlighting empty until the ingestion pipeline runs. Seeded
  * this way, those three features work from `db seed` alone — no AWS required.
+ *
+ * Documents go to Postgres, entities and mentions go to FalkorDB. They have no
+ * Postgres table, so **FalkorDB must be running** for this script to finish:
+ *
+ *   docker compose -f docker-compose.dev.yml up -d falkordb
  *
  * Entity character offsets are computed here with indexOf rather than taken
  * from the source data (v1 stores none) or asked of an LLM. The stored mention
@@ -126,8 +133,38 @@ async function main() {
     },
   });
 
+  // ---- Graph ---------------------------------------------------------------
+  // Dropped and rebuilt: the graph holds no fact Postgres does not, so a full
+  // rebuild costs nothing and removes every kind of drift at once.
+  const falkor = await FalkorDB.connect({
+    socket: {
+      host: process.env.FALKORDB_HOST ?? 'localhost',
+      port: Number(process.env.FALKORDB_PORT ?? 6384),
+    },
+  });
+  const graph = falkor.selectGraph(process.env.FALKORDB_GRAPH ?? 'edip');
+  try {
+    await graph.delete();
+  } catch {
+    // Nothing to drop on a first run; that is the desired end state.
+  }
+  for (const statement of [
+    'CREATE INDEX FOR (e:Entity) ON (e.id)',
+    'CREATE INDEX FOR (e:Entity) ON (e.normalized_name)',
+    'CREATE INDEX FOR (e:Entity) ON (e.type)',
+    'CREATE INDEX FOR (d:Document) ON (d.id)',
+    `CREATE VECTOR INDEX FOR (e:Entity) ON (e.name_embedding) OPTIONS {dimension: 1024, similarityFunction: 'cosine'}`,
+  ]) {
+    try {
+      await graph.query(statement);
+    } catch (error) {
+      if (!/already (?:indexed|exists)/i.test((error as Error).message)) throw error;
+    }
+  }
+
   // ---- Documents ---------------------------------------------------------
   let entityLinks = 0;
+  let locatedMentions = 0;
 
   for (const record of records) {
     const analysis = record.analysis;
@@ -163,19 +200,61 @@ async function main() {
       },
     });
 
-    // Same routine the ingestion pipeline runs on a freshly uploaded file, so
-    // seeded and uploaded documents carry identical entity data.
-    const { linked } = await linkDocumentEntities(
-      prisma,
-      record.id,
-      record.text,
-      (analysis?.entities ?? []).map((raw) => ({
-        type: raw.kind,
-        value: raw.value,
-        confidence: raw.confidence,
-      })),
+    // Document node in the graph, so mentions have something to attach to.
+    await graph.query(
+      `MERGE (d:Document {id: $id})
+       SET d.label = $label, d.title = $title, d.filename = $filename,
+           d.document_type = $documentType, d.status = 'completed'`,
+      {
+        params: {
+          id: record.id,
+          label: analysis?.metadata.title ?? record.fileName,
+          title: analysis?.metadata.title ?? null,
+          filename: record.fileName,
+          documentType: analysis?.type ?? null,
+        },
+      },
     );
-    entityLinks += linked;
+
+    for (const raw of analysis?.entities ?? []) {
+      const normalizedName = normalizeEntityName(raw.value);
+      if (!normalizedName) continue;
+
+      const type = coerceEntityType(raw.kind);
+      // No embeddings here: seeding must work without AWS. Dedup falls back to
+      // the exact-name path, which is what folds `Ecloudvalley Vietnam Ltd`
+      // and `ECLOUDVALLEY VIETNAM` into one node.
+      await graph.query(
+        `MERGE (e:Entity {normalized_name: $normalizedName, type: $type})
+         ON CREATE SET e.id = $id, e.entity_name = $entityName, e.aliases = []`,
+        {
+          params: { normalizedName, type, id: randomUUID(), entityName: raw.value },
+        },
+      );
+
+      // Verbatim mention, so indexOf either finds the exact span or the
+      // mention honestly carries no offset. Never guessed.
+      const charStart = record.text.indexOf(raw.value);
+      await graph.query(
+        `MATCH (d:Document {id: $documentId}),
+               (e:Entity {normalized_name: $normalizedName, type: $type})
+         MERGE (d)-[m:MENTIONS {mention_text: $mentionText}]->(e)
+         SET m.char_start = $charStart, m.char_end = $charEnd, m.confidence = $confidence`,
+        {
+          params: {
+            documentId: record.id,
+            normalizedName,
+            type,
+            mentionText: raw.value,
+            charStart: charStart >= 0 ? charStart : null,
+            charEnd: charStart >= 0 ? charStart + raw.value.length : null,
+            confidence: raw.confidence ?? null,
+          },
+        },
+      );
+      entityLinks += 1;
+      if (charStart >= 0) locatedMentions += 1;
+    }
   }
 
   // ---- One document that genuinely failed extraction ---------------------
@@ -198,21 +277,26 @@ async function main() {
     },
   });
 
-  const [users, documents, entities, links, withOffsets, typed] = await Promise.all([
+  const [users, documents, typed] = await Promise.all([
     prisma.user.count(),
     prisma.document.count(),
-    prisma.entity.count(),
-    prisma.documentEntity.count(),
-    prisma.documentEntity.count({ where: { charStart: { not: null } } }),
     prisma.document.count({ where: { documentType: { not: null } } }),
   ]);
+
+  const entityCount = await graph.query<{ count: number }>(
+    'MATCH (e:Entity) RETURN count(e) AS count',
+  );
+  const mentionCount = await graph.query<{ count: number }>(
+    'MATCH (:Document)-[m:MENTIONS]->(:Entity) RETURN count(m) AS count',
+  );
+  await falkor.close();
 
   console.log(
     [
       `users            ${users}`,
       `documents        ${documents} (${typed} typed, ${documents - typed} untyped/failed)`,
-      `entities         ${entities} distinct (from ${entityLinks} mentions)`,
-      `document-entity  ${links} links, ${withOffsets} with char offsets`,
+      `entities         ${entityCount.data?.[0]?.count ?? 0} distinct in FalkorDB (from ${entityLinks} mentions)`,
+      `mentions         ${mentionCount.data?.[0]?.count ?? 0} edges, ${locatedMentions} with char offsets`,
     ].join('\n'),
   );
 }

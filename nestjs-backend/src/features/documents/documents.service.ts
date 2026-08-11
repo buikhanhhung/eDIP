@@ -85,31 +85,30 @@ export class DocumentsService {
     return { items, total };
   }
 
+  /**
+   * The row from Postgres, its entities from the graph.
+   *
+   * A graph read that fails degrades to an empty entity list rather than a
+   * failed request: the document, its text and its metadata are all in
+   * Postgres and worth showing on their own. The page loses highlighting, not
+   * its content.
+   */
   async findOne(id: string) {
     const doc = await this.prisma.document.findUnique({
       where: { id },
-      include: {
-        owner: { select: { id: true, email: true } },
-        entities: {
-          include: { entity: { select: { id: true, type: true, displayName: true } } },
-        },
-      },
+      include: { owner: { select: { id: true, email: true } } },
     });
     if (!doc) throw new NotFoundException(`Document ${id} not found`);
 
+    let entities: Awaited<ReturnType<IGraphStore['getEntitiesForDocument']>> = [];
+    try {
+      entities = await this.graph.getEntitiesForDocument(id);
+    } catch (error) {
+      this.logger.warn(`could not read entities for ${id} from the graph: ${(error as Error).message}`);
+    }
+
     const { storagePath: _storagePath, ...rest } = doc;
-    return {
-      ...rest,
-      entities: doc.entities.map((de) => ({
-        id: de.entity.id,
-        type: de.entity.type,
-        displayName: de.entity.displayName,
-        mentionText: de.mentionText,
-        charStart: de.charStart,
-        charEnd: de.charEnd,
-        confidence: de.confidence,
-      })),
-    };
+    return { ...rest, entities };
   }
 
   /** Small enough to poll every second or two while a job runs. */
@@ -162,7 +161,7 @@ export class DocumentsService {
   async updateMetadata(id: string, patch: MetadataPatch, actorId: string) {
     const existing = await this.prisma.document.findUnique({
       where: { id },
-      select: { metadata: true, textContent: true },
+      select: { metadata: true, textContent: true, filename: true, status: true },
     });
     if (!existing) throw new NotFoundException(`Document ${id} not found`);
 
@@ -189,24 +188,45 @@ export class DocumentsService {
       select: { id: true, title: true, documentType: true, metadata: true, metadataEditedAt: true },
     });
 
+    // The document node carries title, type and status, so an edit that
+    // changes any of them has to reach the graph too.
+    await this.graph.projectDocument({
+      id,
+      title: updated.title,
+      filename: existing.filename,
+      documentType: updated.documentType,
+      status: existing.status,
+    });
+
     if (patch.parties !== undefined) {
-      await this.graph.deleteByDocument(id, ['company']);
-      await this.graph.upsertDocumentEntities(
-        id,
-        existing.textContent ?? '',
-        patch.parties.map((party) => ({ type: 'company', value: party })),
-      );
+      const text = existing.textContent ?? '';
+      await this.graph.unlinkMentions(id, ['company']);
+
+      for (const party of patch.parties) {
+        const { entityId } = await this.graph.resolveEntity({ name: party, type: 'company' });
+        const charStart = text.indexOf(party);
+        await this.graph.linkMention(id, entityId, {
+          mentionText: party,
+          charStart: charStart >= 0 ? charStart : null,
+          charEnd: charStart >= 0 ? charStart + party.length : null,
+        });
+      }
     }
 
     return updated;
   }
 
   /**
-   * Database first, disk second.
+   * Graph first, then the row, then the file.
    *
-   * Reversed, a failed delete leaves a row pointing at a file that no longer
-   * exists and every later read throws. This way the worst case is an orphaned
-   * file, which nothing reads.
+   * The graph goes first because it is the only step with nothing to fall back
+   * on: no foreign key spans the two stores, so a node left behind after the
+   * row is gone becomes a document on the canvas that cannot be opened. Losing
+   * the row after the node is merely a repeatable delete.
+   *
+   * The file goes last for the same reason it always did — reversed, a failed
+   * delete leaves a row pointing at a file that is no longer there, and every
+   * later read throws. An orphaned file is read by nothing.
    */
   async remove(id: string): Promise<{ id: string }> {
     const doc = await this.prisma.document.findUnique({
@@ -215,7 +235,8 @@ export class DocumentsService {
     });
     if (!doc) throw new NotFoundException(`Document ${id} not found`);
 
-    // embedding_chunks and DocumentEntity both cascade.
+    await this.graph.deleteDocument(id);
+    // embedding_chunks cascades with the row.
     await this.prisma.document.delete({ where: { id } });
     await this.storage.remove(doc.storagePath);
 

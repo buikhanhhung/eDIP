@@ -79,12 +79,15 @@ export class EntityExtractionService {
           embedding: vectors?.[position] ?? null,
         });
 
-        const { located } = await this.graph.linkMention(
-          documentId,
-          entityId,
-          entity.name,
-          documentText,
-        );
+        // Position is measured against the stored text, never asked of the
+        // model: the mention is required to be verbatim, so indexOf is exact
+        // when it matches and honestly absent when it does not.
+        const charStart = documentText.indexOf(entity.name);
+        const { located } = await this.graph.linkMention(documentId, entityId, {
+          mentionText: entity.name,
+          charStart: charStart >= 0 ? charStart : null,
+          charEnd: charStart >= 0 ? charStart + entity.name.length : null,
+        });
 
         resolved.set(normalizeEntityName(entity.name), entityId);
         summary.entities += 1;
@@ -117,7 +120,7 @@ export class EntityExtractionService {
       }
     }
 
-    summary.relations = await this.graph.replaceRelations(documentId, relations);
+    summary.relations = await this.graph.replaceRelations(documentId, documentText, relations);
 
     this.logger.log(
       `[${documentId}] extraction: ${summary.entities} entities (${summary.located} located), ` +

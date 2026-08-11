@@ -1,6 +1,5 @@
 import type { DedupeAction } from './entity-dedup';
 import type { EntityType } from './entity-normalizer';
-import type { EntityMention } from './entity-linker';
 
 /** Shaped for cytoscape directly, so the client does no mapping. */
 export interface GraphNode {
@@ -43,6 +42,19 @@ export interface GetGraphOptions {
   includeRelations?: boolean;
 }
 
+/**
+ * The slice of a Postgres `Document` row the graph needs to filter and label
+ * itself. Copied in rather than joined back: a node that cannot say whether it
+ * is completed forces every read to reach into the other store.
+ */
+export interface DocumentProjection {
+  id: string;
+  title: string | null;
+  filename: string;
+  documentType: string | null;
+  status: string;
+}
+
 /** A candidate produced by the extraction pipeline, before dedup. */
 export interface EntityCandidate {
   name: string;
@@ -58,6 +70,14 @@ export interface ResolvedEntity {
   reason: string;
 }
 
+/** One occurrence of an entity in a document, with its position if locatable. */
+export interface EntityMention {
+  mentionText: string;
+  charStart: number | null;
+  charEnd: number | null;
+  confidence?: number | null;
+}
+
 export interface RelationInput {
   sourceEntityId: string;
   targetEntityId: string;
@@ -67,37 +87,62 @@ export interface RelationInput {
   confidence?: number;
 }
 
+/**
+ * Everything the application knows about the knowledge graph.
+ *
+ * The graph lives in FalkorDB and nowhere else — there is no Postgres table
+ * behind these methods. `:Document` nodes are a projection of Postgres rows,
+ * refreshed through `projectDocument`, which is why deleting a document has to
+ * call `deleteDocument` as well: no foreign key spans the two stores.
+ */
 export interface IGraphStore {
-  upsertDocumentEntities(
-    documentId: string,
-    text: string,
-    entities: EntityMention[],
-  ): Promise<{ linked: number; withOffset: number }>;
+  /** Creates or refreshes the document node. Call after any row change. */
+  projectDocument(document: DocumentProjection): Promise<void>;
+
+  /** Removes the node with its mentions and relations. */
+  deleteDocument(documentId: string): Promise<void>;
 
   /**
-   * Finds the entity this candidate belongs to, or creates one. Runs the exact
-   * lookup and the nearest-neighbour lookup, then applies `decideDedupe`.
+   * Finds the entity this candidate belongs to, or creates one: exact key,
+   * then nearest same-type neighbour above the similarity threshold.
    */
   resolveEntity(candidate: EntityCandidate): Promise<ResolvedEntity>;
 
-  /** Records that a document mentions an entity, with the offset if locatable. */
   linkMention(
     documentId: string,
     entityId: string,
-    mentionText: string,
-    documentText: string,
-    confidence?: number,
+    mention: EntityMention,
   ): Promise<{ located: boolean }>;
+
+  /** Drops a document's mentions, optionally only those of the given types. */
+  unlinkMentions(documentId: string, types?: readonly EntityType[]): Promise<void>;
+
+  /** Mentions in one document, for the detail page and its highlighting. */
+  getEntitiesForDocument(documentId: string): Promise<
+    {
+      id: string;
+      type: string;
+      displayName: string;
+      mentionText: string;
+      charStart: number | null;
+      charEnd: number | null;
+      confidence: number | null;
+    }[]
+  >;
 
   /**
    * Replaces every relation extracted from this document. Purge-then-insert,
-   * so re-running extraction cannot double an edge.
+   * so re-running extraction cannot double an edge. `documentText` is passed
+   * in because evidence offsets are measured against it here.
    */
-  replaceRelations(documentId: string, relations: RelationInput[]): Promise<number>;
+  replaceRelations(
+    documentId: string,
+    documentText: string,
+    relations: RelationInput[],
+  ): Promise<number>;
 
   getGraph(options: GetGraphOptions): Promise<GraphPayload>;
 
-  /** Entity nodes touching a document, for the click-through drawer. */
   getDocumentsForEntity(entityId: string): Promise<
     { id: string; title: string | null; filename: string; documentType: string | null }[]
   >;
@@ -115,11 +160,4 @@ export interface IGraphStore {
       direction: 'out' | 'in';
     }[]
   >;
-
-  /**
-   * Unlinks a document's entities, optionally only those of the given types.
-   * The type filter exists so re-deriving edited metadata replaces the links
-   * that metadata produced without discarding facts the editor never touched.
-   */
-  deleteByDocument(documentId: string, types?: readonly EntityType[]): Promise<void>;
 }
