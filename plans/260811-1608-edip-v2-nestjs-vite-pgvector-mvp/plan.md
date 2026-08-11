@@ -77,9 +77,9 @@ Cross-plan: không có plan nào khác trong `$ROOT/plans/`. Plan của `$V1` (`
 | Hạng mục | Chốt | Không được đổi giữa chừng |
 |---|---|---|
 | Embedding dimension | **1024** | ✅ Cứng — đổi là phải migrate lại toàn bộ |
-| Nhà cung cấp model | **Bedrock hoặc OpenAI**, chọn bằng `AI_PROVIDER` | Đổi là restart, không phải build lại. Vector đã lưu vẫn dùng được vì cả hai đều phát 1024 chiều |
-| Embedding model | Bedrock: Cohere v3 / Titan v2 · OpenAI: `text-embedding-3-*` với tham số `dimensions: 1024` | Đổi sang model không hỗ trợ `dimensions` là phải migrate lại toàn bộ vector |
-| LLM | Claude qua Bedrock, hoặc GPT qua OpenAI (vision + analyze + Q&A) | |
+| Nhà cung cấp model | **Bedrock · OpenAI · Gemini**, chọn bằng `AI_PROVIDER` | Đổi là restart, không phải build lại. Vector đã lưu vẫn dùng được vì cả ba đều phát 1024 chiều |
+| Embedding model | Bedrock: Cohere v3 / Titan v2 · OpenAI: `text-embedding-3-*` (`dimensions: 1024`) · Gemini: `gemini-embedding-001` (`outputDimensionality: 1024`, chuẩn hoá lại trong code) | Đổi sang model không cắt được chiều là phải migrate lại toàn bộ vector |
+| LLM | Claude / GPT / Gemini — vision + analyze + Q&A đều qua cùng ba interface | |
 | Graph store | **FalkorDB, và chỉ FalkorDB** | Entity, mention, quan hệ không có bảng Postgres — đúng như ECVBot. `:Document` là bản chiếu từ row. Không khoá ngoại nào xuyên hai kho: xoá tài liệu phải xoá node tường minh |
 | Storage | Local disk volume | Không S3 hôm nay |
 | Queue | BullMQ + Redis, `attempts: 3` + backoff | Timebox 30 phút, quá thì `EventEmitter2` |
@@ -125,19 +125,14 @@ Cross-plan: không có plan nào khác trong `$ROOT/plans/`. Plan của `$V1` (`
 
 ---
 
-## Việc cần làm ngay khi có credential (Bedrock **hoặc** OpenAI)
+## Việc cần làm ngay khi có credential (Bedrock **hoặc** OpenAI **hoặc** Gemini)
 
 Từ 12/08 không còn phụ thuộc riêng AWS. Cắm được cái nào trước thì chạy cái đó:
 
 ```
-# OpenAI
-AI_PROVIDER=openai
-OPENAI_API_KEY=sk-...
-
-# hoặc Bedrock
-AI_PROVIDER=bedrock
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
+AI_PROVIDER=openai   + OPENAI_API_KEY=sk-...
+AI_PROVIDER=gemini   + GEMINI_API_KEY=...
+AI_PROVIDER=bedrock  + AWS_ACCESS_KEY_ID=... + AWS_SECRET_ACCESS_KEY=...
 ```
 
 Rồi restart. Checklist dưới đây áp dụng như nhau cho cả hai — theo thứ tự, mỗi bước là cổng chặn cho bước sau.
