@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { downloadMimeFor } from '@infrastructure/storage/allowlist';
+import { LocalStorageService } from '@infrastructure/storage/local-storage.service';
 import { PrismaService } from '@shared/database/prisma.service';
 
 export interface ListDocumentsQuery {
@@ -30,7 +32,10 @@ const LIST_SELECT = {
 
 @Injectable()
 export class DocumentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: LocalStorageService,
+  ) {}
 
   async list(query: ListDocumentsQuery) {
     const where: Prisma.DocumentWhereInput = {};
@@ -90,6 +95,42 @@ export class DocumentsService {
         charEnd: de.charEnd,
         confidence: de.confidence,
       })),
+    };
+  }
+
+  /** Small enough to poll every second or two while a job runs. */
+  async status(id: string) {
+    const doc = await this.prisma.document.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        error: true,
+        textSource: true,
+        documentType: true,
+        processedAt: true,
+      },
+    });
+    if (!doc) throw new NotFoundException(`Document ${id} not found`);
+    return doc;
+  }
+
+  /**
+   * The original bytes. Served as an attachment with `nosniff`, and .html/.xml
+   * downgraded to text/plain by `downloadMimeFor` — an uploaded page served
+   * inline from this origin would run as this origin.
+   */
+  async download(id: string) {
+    const doc = await this.prisma.document.findUnique({
+      where: { id },
+      select: { filename: true, storagePath: true },
+    });
+    if (!doc) throw new NotFoundException(`Document ${id} not found`);
+
+    return {
+      buffer: await this.storage.read(doc.storagePath),
+      filename: doc.filename,
+      mimeType: downloadMimeFor(doc.filename),
     };
   }
 

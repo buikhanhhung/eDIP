@@ -4,10 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, type Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import 'dotenv/config';
-import {
-  coerceEntityType,
-  normalizeEntityName,
-} from '../src/features/graph/entity-normalizer';
+import { linkDocumentEntities } from '../src/features/graph/entity-linker';
 
 /**
  * Seeds the demo corpus carried over from eDIP v1, including the analysis v1
@@ -166,41 +163,19 @@ async function main() {
       },
     });
 
-    for (const raw of analysis?.entities ?? []) {
-      const normalizedName = normalizeEntityName(raw.value);
-      if (!normalizedName) continue;
-
-      const type = coerceEntityType(raw.kind);
-      const entity = await prisma.entity.upsert({
-        where: { type_normalizedName: { type, normalizedName } },
-        update: {},
-        create: { type, normalizedName, displayName: raw.value },
-      });
-
-      // Verbatim mention, so this either finds the exact span or the entity
-      // simply carries no offset. Never guessed.
-      const charStart = record.text.indexOf(raw.value);
-
-      await prisma.documentEntity.upsert({
-        where: {
-          documentId_entityId_mentionText: {
-            documentId: record.id,
-            entityId: entity.id,
-            mentionText: raw.value,
-          },
-        },
-        update: {},
-        create: {
-          documentId: record.id,
-          entityId: entity.id,
-          mentionText: raw.value,
-          charStart: charStart >= 0 ? charStart : null,
-          charEnd: charStart >= 0 ? charStart + raw.value.length : null,
-          confidence: raw.confidence ?? null,
-        },
-      });
-      entityLinks += 1;
-    }
+    // Same routine the ingestion pipeline runs on a freshly uploaded file, so
+    // seeded and uploaded documents carry identical entity data.
+    const { linked } = await linkDocumentEntities(
+      prisma,
+      record.id,
+      record.text,
+      (analysis?.entities ?? []).map((raw) => ({
+        type: raw.kind,
+        value: raw.value,
+        confidence: raw.confidence,
+      })),
+    );
+    entityLinks += linked;
   }
 
   // ---- One document that genuinely failed extraction ---------------------

@@ -10,6 +10,8 @@ import { RbacGuard } from '@common/rbac/rbac.guard';
 import { type EnvConfig, validateEnv } from '@config/env.config';
 import { AuthModule } from '@features/auth/auth.module';
 import { DocumentsModule } from '@features/documents/documents.module';
+import { IngestionModule } from '@features/ingestion/ingestion.module';
+import { QueueModule } from '@shared/queue/queue.module';
 import { SharedModule } from '@shared/shared.module';
 
 /**
@@ -41,8 +43,10 @@ import { SharedModule } from '@shared/shared.module';
     }),
 
     SharedModule,
+    QueueModule,
     AuthModule,
     DocumentsModule,
+    IngestionModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: CustomZodValidationPipe },
