@@ -1,0 +1,36 @@
+# eDIP-v2 local infra.
+# Ports are offset from ECVBot dev (5433/6381) so both stacks can run side by side.
+services:
+    postgres:
+        image: pgvector/pgvector:pg16
+        container_name: edip-v2-postgres-dev
+        environment:
+            POSTGRES_USER: edip
+            POSTGRES_PASSWORD: edip_dev
+            POSTGRES_DB: edip
+        ports:
+            - '5434:5432'
+        volumes:
+            - pgdata_dev:/var/lib/postgresql/data
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U edip -d edip']
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    redis:
+        image: redis:7-alpine
+        container_name: edip-v2-redis-dev
+        ports:
+            - '6383:6379'
+        volumes:
+            - redisdata_dev:/data
+        healthcheck:
+            test: ['CMD', 'redis-cli', 'PING']
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+volumes:
+    pgdata_dev:
+    redisdata_dev:

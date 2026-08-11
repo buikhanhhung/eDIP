@@ -1,0 +1,30 @@
+# Secrets — never commit
+.env
+.env.local
+*.pem
+*.key
+
+# Uploaded documents and local data. The seed corpus carries KYC-shaped sample
+# records; keep the blobs out of git even though the data is synthetic.
+storage/
+data/
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# Prisma generated client
+generated/
+
+# Logs and OS noise
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+*.swp
