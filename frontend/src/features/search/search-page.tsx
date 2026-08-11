@@ -122,9 +122,13 @@ export function SearchPage() {
         </p>
       )}
 
-      {mode === 'search' && search.data && (
-        <SearchResults data={search.data} />
+      {mode === 'search' && !search.data && !search.isPending && (
+        <p className="text-sm text-muted-foreground">
+          Nhập một truy vấn, hoặc bấm một gợi ý ở trên để bắt đầu.
+        </p>
       )}
+
+      {mode === 'search' && search.data && <SearchResults data={search.data} />}
 
       {mode === 'ask' && ask.data && <AskAnswer data={ask.data} />}
     </div>

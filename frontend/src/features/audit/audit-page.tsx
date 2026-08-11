@@ -60,6 +60,13 @@ export function AuditPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {data.items.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
+                  Chưa có hoạt động nào được ghi lại.
+                </TableCell>
+              </TableRow>
+            )}
             {data.items.map((row) => (
               <TableRow key={row.id}>
                 <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">

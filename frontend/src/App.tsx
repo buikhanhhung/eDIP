@@ -32,10 +32,31 @@ export default function App() {
             >
               <Route path="/" element={<DashboardPage />} />
               <Route path="/library" element={<LibraryPage />} />
-              <Route path="/upload" element={<UploadPage />} />
-              <Route path="/search" element={<SearchPage />} />
+              <Route
+                path="/upload"
+                element={
+                  <ProtectedRoute permission="upload">
+                    <UploadPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/search"
+                element={
+                  <ProtectedRoute permission="search">
+                    <SearchPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/graph" element={<GraphPage />} />
-              <Route path="/audit" element={<AuditPage />} />
+              <Route
+                path="/audit"
+                element={
+                  <ProtectedRoute permission="audit">
+                    <AuditPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/documents/:id" element={<DocumentDetailPage />} />
             </Route>
           </Routes>

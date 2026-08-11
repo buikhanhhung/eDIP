@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { apiClient } from '@/lib/api-client';
+import { useAuth } from '@/features/auth/auth-context';
 import { formatDate } from '@/lib/utils';
 import {
   statusLabel,
@@ -83,6 +84,7 @@ const columns = [
 export function LibraryPage() {
   // Filters live in the URL so a filtered view can be linked to — the dashboard
   // tiles navigate straight into one.
+  const { can } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get('q') ?? '';
   const type = searchParams.get('type') ?? '';
@@ -191,8 +193,24 @@ export function LibraryPage() {
               ))}
               {!isLoading && table.getRowModel().rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="py-10 text-center text-muted-foreground">
-                    Không có tài liệu nào khớp bộ lọc.
+                  <TableCell colSpan={columns.length} className="py-10 text-center">
+                    {/* An empty library and an over-filtered one look the same
+                        on screen but need opposite actions, so they say
+                        different things. */}
+                    {q || type || status ? (
+                      <span className="text-muted-foreground">
+                        Không có tài liệu nào khớp bộ lọc.
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Chưa có tài liệu nào.{' '}
+                        {can('upload') && (
+                          <Link to="/upload" className="text-primary hover:underline">
+                            Tải lên để bắt đầu
+                          </Link>
+                        )}
+                      </span>
+                    )}
                   </TableCell>
                 </TableRow>
               )}
