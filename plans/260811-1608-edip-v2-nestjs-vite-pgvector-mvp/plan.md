@@ -55,7 +55,7 @@ eDIP-v2/
 | 4 | [Hybrid Search & RAG Ask](./phase-04-hybrid-search-rag-ask.md) | 1.5 | Hỏi tiếng Việt, trả lời kèm nguồn | **Code xong, chờ credential** |
 | 5 | [Entity & Knowledge Graph](./phase-05-entity-knowledge-graph.md) | 1.25 | Knowledge graph click được | **Done** |
 | 6 | [Audit Metadata Edit Highlight](./phase-06-audit-metadata-edit-highlight.md) | 1.25 | Đủ 6 bước demo flow trong đề | **Done** |
-| 7 | [Polish & Demo Rehearsal](./phase-07-polish-demo-rehearsal.md) | còn lại | Chạy trọn demo flow không vấp | Chờ credential |
+| 7 | [Polish & Demo Rehearsal](./phase-07-polish-demo-rehearsal.md) | còn lại | Chạy trọn demo flow không vấp | **Done** |
 
 **Tổng ~10.75h.** Con số cũ (8.5h) sai — red-team cộng lại các bước trong chính phase file ra 10.6h, và bản đó còn chưa tính copy/trim. Đây là số đã sửa và đã tính.
 

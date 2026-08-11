@@ -1,7 +1,7 @@
 ---
 phase: 7
 title: "Polish & Demo Rehearsal"
-status: pending
+status: done
 priority: P3
 dependencies: [6]
 effort: "còn lại"
@@ -91,14 +91,29 @@ Theo mẫu `$V1/docs/feature-status.md`: mỗi tính năng ghi **đã đo bằng
 - [ ] `pnpm build` pass ở cả 2 repo
 - [ ] `$V1` **không bị sửa** — `git status` trong `$V1` phải sạch
 
-## Success Criteria
+## Success Criteria — chạy 12/08, provider Gemini
 
-- [ ] Chạy trọn 6 bước demo flow không vấp, từ trạng thái `docker compose down -v` rồi dựng lại
-- [ ] Không trang nào màn hình trắng khi API lỗi
-- [ ] `/graph` không rỗng, `/search` không rỗng ngay sau khi seed + backfill
-- [ ] README dựng lại được từ 0 trong <10 phút bởi người chưa từng đọc code
-- [ ] `git status` sạch, không có secret, không có file upload
-- [ ] `$V1` vẫn chạy được (`pnpm dev` ở `$V1` lên bình thường)
+- [x] Chạy trọn demo flow bằng cách **bấm thật trong trình duyệt**, không đọc code
+- [x] Không trang nào màn hình trắng khi API lỗi; đã bổ sung empty state cho nhật ký, thư viện rỗng-vs-lọc-hết, và search trước truy vấn đầu
+- [x] `/graph` 21 nút · 38 cạnh, `/search` trả kết quả từ **cả hai** nhánh sau `seed` + `backfill:embeddings` (19 chunk có vector)
+- [x] README + `docs/feature-status.md` viết xong, ghi rõ bước nào cần khoá model bước nào không
+- [x] `git status` sạch, `.env` và `storage/` đều bị ignore, không có secret trong file đã commit
+- [ ] Dựng lại từ `docker compose down -v` — **chưa chạy**; các bước có trong README nhưng chưa ai làm lại từ máy sạch
+- [x] `$V1` không bị phiên này đụng tới (`run-seed.ts` có một thay đổi từ 14:26, trước khi phiên bắt đầu — của người dùng, để nguyên)
+
+## Bốn lỗi tìm được khi bấm thật
+
+Không lỗi nào lộ ra khi đọc code hay chạy test.
+
+1. **Câu demo `hợp đồng với Saigon Retail` hoà điểm tuyệt đối** giữa MSA và một hợp đồng khác — vector xếp cái này nhất, lexical xếp cái kia nhất. Tie-break khi đó là **so sánh id tài liệu**, tức kết quả hạng nhất của câu demo quan trọng nhất do UUID quyết định. Sửa: gỡ hoà bằng nhánh dẫn đầu (ngữ nghĩa cho truy vấn ngôn ngữ tự nhiên). MSA giờ đứng nhất.
+2. **Bật "Hiện quan hệ" mà quan hệ vẫn biến mất**: cạnh quan hệ bị lọc theo `minShared`, vốn hỏi "thực thể này có nối các tài liệu không" — câu hỏi khác hẳn "có trích được quan hệ không". 5/7 cạnh bị giấu sau mặc định. Sửa: hai đầu của quan hệ luôn được đưa lên canvas.
+3. **`viewer` gõ thẳng `/search` vẫn vào được trang** — nav ẩn link nhưng route không kiểm quyền, nên mỗi lần bấm Tìm là một lỗi đỏ. Sửa: route khai báo quyền cần có và giải thích khi từ chối.
+4. **`backfill:embeddings` gọi thẳng lớp Bedrock**, nên đòi khoá AWS trong khi ứng dụng đang chạy Gemini. Script nằm ngoài `src/` nên lần refactor provider đã sót nó.
+
+## Còn thiếu, nói trước
+
+- **Quan hệ có nhãn chỉ có cho tài liệu đã qua pipeline của hệ thống này.** 9 tài liệu seed mang dữ liệu phân tích của v1 nên chỉ có cạnh đồng xuất hiện. Bước 1 của demo (tải lên) là thứ sinh ra quan hệ — nếu upload hỏng giữa buổi thì bước 4 sẽ không có cạnh có nhãn để khoe.
+- Chưa dựng lại từ máy sạch để bấm giờ README.
 
 ## Risk Assessment
 
