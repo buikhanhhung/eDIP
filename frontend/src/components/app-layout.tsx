@@ -11,7 +11,10 @@ import { cn } from '@/lib/utils';
 const NAV_ITEMS: { to: string; label: string; end: boolean; permission?: string }[] = [
   { to: '/', label: 'Tổng quan', end: true },
   { to: '/library', label: 'Thư viện', end: false },
+  { to: '/search', label: 'Tìm kiếm', end: false, permission: 'search' },
+  { to: '/graph', label: 'Đồ thị', end: false },
   { to: '/upload', label: 'Tải lên', end: false, permission: 'upload' },
+  { to: '/audit', label: 'Nhật ký', end: false, permission: 'audit' },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
