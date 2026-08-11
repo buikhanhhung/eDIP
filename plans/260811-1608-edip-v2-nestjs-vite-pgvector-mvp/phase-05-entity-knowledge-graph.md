@@ -160,6 +160,46 @@ Không thêm plugin layout (`cytoscape-fcose`...). ~45 node, `cose` đủ.
 - [x] Xoá 1 document → link của nó biến mất (kiểm: `DELETE /documents/:id` → 0 row `DocumentEntity` còn lại, file trên đĩa cũng bị xoá)
 - [ ] Click node entity → drawer liệt kê đúng document — *code xong, chưa click thử trong trình duyệt*
 
+## Bổ sung 11/08 — quan hệ có kiểu theo cơ chế ECVBot
+
+**Quyết định của người dùng:** làm knowledge graph theo cách ECVBot, sau khi đối chiếu hai cơ chế.
+
+Bổ sung này **không thay** graph đồng xuất hiện; nó là lớp thêm. Cạnh document↔entity giữ nguyên nên highlight, seed và phần demo chạy được khi chưa có credential đều không bị đụng.
+
+### Đường ghi mới
+
+```
+mỗi chunk:
+  1. NER          → 1 lời gọi tool-use → [{name, type, description, confidence}]
+  2. Verify+rels  → 1 lời gọi nữa, cầm output bước 1 → sửa/bỏ/thêm entity,
+                    rồi nêu quan hệ kèm CÂU VĂN làm bằng chứng
+  3. Dedup 3 tầng → khớp khoá chính xác → láng giềng vector cùng type
+                    vượt ngưỡng → tạo mới
+  4. Ghi          → Entity (+description, +aliases, +name_embedding),
+                    EntityRelation (+evidence, +evidenceStart/End)
+```
+
+Chi phí: **2 lời gọi LLM mỗi chunk**, cộng một lượt embedding tên. Tính trên chi phí biên, và trả lại mỗi lần chạy lại extraction.
+
+### Khác ECVBot ở ba chỗ, có lý do
+
+| Điểm | ECVBot | Ở đây | Lý do |
+|---|---|---|---|
+| Offset | hỏi model trả `start`/`end` | **không hỏi**, đo bằng `indexOf` | Số học offset trên tiếng Việt nhiều byte là chỗ model yếu nhất, và offset sai thì bôi đậm nhầm câu mà trông vẫn hợp lý. Đây là luật đã có sẵn của codebase này |
+| Ngưỡng similarity | rescale `(2-d)/2` | cosine thật `1-d` | Để con số ngưỡng trong `entity-dedup.ts` đúng nghĩa là cosine, không phải một thang đã bị nén |
+| Đổi tên khi gộp | — | **không đổi** `displayName` | Gộp không được đổi tên node dưới chân người đang dùng nó; tên mới vào `aliases` để thấy được cái gì đã bị hút vào, và tách ra được nếu gộp sai |
+
+### Đã kiểm (chưa cần credential)
+
+- [x] `migrate deploy` sạch; `EntityRelation` có unique `(documentId, source, target, type)` → chạy lại extraction thay chứ không nhân đôi cạnh
+- [x] `Entity` có thêm `description`, `aliases`, `name_embedding vector(1024)`
+- [x] `GET /graph?relations=true` → 200, payload phân biệt `kind: mentions | relates`, id cạnh vẫn duy nhất
+- [x] `GET /graph/entities/:id/relations` → 200, trả `[]` khi chưa có quan hệ nào
+- [x] Seed chạy lại đúng như cũ: 33 entity / 59 link / 55 offset — lớp mới không phá đường cũ
+- [x] 79/79 test pass, gồm 8 case cho quyết định dedup (gộp cùng type, chặn tên ngắn, dưới ngưỡng, không láng giềng)
+- [ ] Trích quan hệ thật từ tài liệu — **chặn: cần credential**. Chưa có một dòng `EntityRelation` nào được sinh ra bởi model
+- [ ] Ngưỡng `DEFAULT_DEDUP_THRESHOLD = 0.92` — **đặt theo phỏng đoán, chưa hiệu chỉnh trên dữ liệu thật**. Phải đo lại khi có credential
+
 ## Deviation Log (11/08)
 
 | Điểm | Kế hoạch | Thực tế | Lý do |

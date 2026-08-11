@@ -132,9 +132,10 @@ Theo thứ tự. Mỗi bước là cổng chặn cho bước sau.
 2. `pnpm backfill:embeddings` → `SELECT count(*) FROM embedding_chunks WHERE embedding IS NOT NULL` > 0. Chạy **lần hai**, số chunk phải không đổi.
 3. Upload `$V1/seed/fixtures/scanned-contract.pdf` → `textSource='vision'`, text không rỗng. Đây là lần đầu đường vision chạy thật.
 4. Upload `$V1/seed/fixtures/vietnamese-scan.jpg` → đọc đúng chữ Việt có dấu.
-5. `POST /search { q: 'hợp đồng với Saigon Retail' }` → MSA phải lên **rank 1**. Hiện lexical xếp nó thứ 3 và **không thể** khác được (tài liệu tiếng Anh, xem phase 4 §Ranking). Đây là phép thử thật của nhánh vector.
-6. `POST /ask` một câu có nguồn → citation trỏ document có thật; một câu vô căn cứ → đúng câu "Không tìm thấy…".
-7. Chạy lại cùng một job ingest 2 lần → `count(*) FROM embedding_chunks WHERE document_id=…` không đổi.
+5. **Trích quan hệ**: upload lại 1 hợp đồng → `SELECT count(*) FROM "EntityRelation"` > 0; mở `/graph?relations=true` thấy cạnh có nhãn; click cạnh phải hiện **câu văn nguyên văn** có thật trong tài liệu. Đồng thời đo lại ngưỡng `DEFAULT_DEDUP_THRESHOLD = 0.92` — con số này đang là phỏng đoán: kiểm xem `ECV` / `Ecloudvalley Vietnam Ltd` gộp hay tách, và có cặp nào **bị gộp nhầm** không.
+6. `POST /search { q: 'hợp đồng với Saigon Retail' }` → MSA phải lên **rank 1**. Hiện lexical xếp nó thứ 3 và **không thể** khác được (tài liệu tiếng Anh, xem phase 4 §Ranking). Đây là phép thử thật của nhánh vector.
+7. `POST /ask` một câu có nguồn → citation trỏ document có thật; một câu vô căn cứ → đúng câu "Không tìm thấy…".
+8. Chạy lại cùng một job ingest 2 lần → `count(*) FROM embedding_chunks WHERE document_id=…` không đổi.
 
 ## Deviation Log
 
