@@ -13,24 +13,56 @@ export class GeminiLlmService implements ILlmService {
   private readonly logger = new Logger(GeminiLlmService.name);
   private readonly client: GoogleGenAI;
   private readonly model: string;
+  private readonly minIntervalMs: number;
+
+  /** Serialises the pacing gate; requests queue behind one another. */
+  private nextSlot = Promise.resolve();
 
   constructor(private readonly config: ConfigService<EnvConfig, true>) {
     this.client = createGeminiClient(config);
     this.model = this.config.get('GEMINI_LLM_MODEL', { infer: true });
+    this.minIntervalMs = this.config.get('GEMINI_MIN_REQUEST_INTERVAL_MS', { infer: true });
+  }
+
+  /**
+   * Spaces requests by `GEMINI_MIN_REQUEST_INTERVAL_MS`.
+   *
+   * Ingesting one document is one analysis call plus two per chunk, issued
+   * back to back — six calls for a two-chunk file, against a free tier that
+   * allows five a minute. Waiting is what makes the pipeline finish at all on
+   * that plan; a paid key sets the interval to 0 and pays nothing for this.
+   */
+  private async paced<T>(run: () => Promise<T>): Promise<T> {
+    if (this.minIntervalMs <= 0) return run();
+
+    const wait = this.nextSlot;
+    let release!: () => void;
+    this.nextSlot = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await wait;
+    try {
+      return await run();
+    } finally {
+      setTimeout(release, this.minIntervalMs);
+    }
   }
 
   async invokeText(messages: ChatMessage[], maxTokens = DEFAULT_MAX_TOKENS): Promise<string> {
     assertGeminiConfigured(this.config, 'Answering a question');
 
-    const response = await this.client.models.generateContent({
-      model: this.model,
-      contents: this.toContents(messages),
-      config: {
-        systemInstruction: this.toSystemInstruction(messages),
-        maxOutputTokens: maxTokens,
-        temperature: DEFAULT_TEMPERATURE,
-      },
-    });
+    const response = await this.paced(() =>
+      this.client.models.generateContent({
+        model: this.model,
+        contents: this.toContents(messages),
+        config: {
+          systemInstruction: this.toSystemInstruction(messages),
+          maxOutputTokens: maxTokens,
+          temperature: DEFAULT_TEMPERATURE,
+        },
+      }),
+    );
 
     return response.text?.trim() ?? '';
   }
@@ -46,17 +78,19 @@ export class GeminiLlmService implements ILlmService {
   async invokeWithToolUse<T>(tool: ToolSpec, messages: ChatMessage[]): Promise<T> {
     assertGeminiConfigured(this.config, 'Document analysis');
 
-    const response = await this.client.models.generateContent({
-      model: this.model,
-      contents: this.toContents(messages),
-      config: {
-        systemInstruction: this.toSystemInstruction(messages),
-        maxOutputTokens: DEFAULT_MAX_TOKENS,
-        temperature: DEFAULT_TEMPERATURE,
-        responseMimeType: 'application/json',
-        responseJsonSchema: toGeminiSchema(tool.inputSchema),
-      },
-    });
+    const response = await this.paced(() =>
+      this.client.models.generateContent({
+        model: this.model,
+        contents: this.toContents(messages),
+        config: {
+          systemInstruction: this.toSystemInstruction(messages),
+          maxOutputTokens: DEFAULT_MAX_TOKENS,
+          temperature: DEFAULT_TEMPERATURE,
+          responseMimeType: 'application/json',
+          responseJsonSchema: toGeminiSchema(tool.inputSchema),
+        },
+      }),
+    );
 
     const text = response.text?.trim();
     if (!text) {

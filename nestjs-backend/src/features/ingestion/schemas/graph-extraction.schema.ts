@@ -1,5 +1,26 @@
 import { z } from 'zod';
+import { foldAccents } from '@common/text/fold-accents';
 import { ENTITY_TYPES } from '@features/graph/entity-normalizer';
+
+/**
+ * Folds a relationship label into the edge taxonomy: accents removed, upper
+ * case, single underscores.
+ *
+ * Normalising rather than validating, because the label is ours to shape. The
+ * first real run rejected an entire chunk's relations over `CUNG_CẤP_DỊCH_VỤ_CHO`
+ * — a correct answer written with Vietnamese diacritics — and a rejected chunk
+ * costs the two model calls that produced it. A prompt cannot be relied on to
+ * hold a formatting rule that one line of code can simply enforce.
+ */
+export function normalizeRelationType(raw: string): string {
+  const folded = foldAccents(raw)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  if (!folded) throw new Error(`Relationship type "${raw}" normalises to nothing`);
+  return folded;
+}
 
 /**
  * The two-step graph extraction contract, ported from ECVBot.
@@ -98,11 +119,7 @@ export const relationExtractionSchema = z.object({
     z.object({
       source: z.string().min(1),
       target: z.string().min(1),
-      type: z
-        .string()
-        .min(1)
-        .max(100)
-        .regex(/^[A-Z][A-Z0-9_]*$/, 'relationship type must be SNAKE_CASE in capitals'),
+      type: z.string().min(1).max(100).transform(normalizeRelationType),
       description: z.string().min(1).max(500),
       evidence: z.string().min(1).max(1000),
       confidence: z.number().min(0).max(1),

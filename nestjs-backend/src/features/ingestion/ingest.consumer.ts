@@ -141,11 +141,26 @@ export class IngestConsumer extends WorkerHost {
       });
 
       step('extract-graph');
-      const graph = await this.graphExtraction.extractForDocument(
-        documentId,
-        extracted.text,
-        chunks,
-      );
+      // Failures here are swallowed on purpose, which the row above has already
+      // earned: the document is stored, classified, chunked and searchable.
+      // Rethrowing would retry the whole job — re-running analysis and
+      // embedding that already succeeded — and then mark a perfectly good
+      // document failed because its graph is empty. The first real run did
+      // exactly that: seven model calls for one document, ending in a rate
+      // limit. An empty graph is a missing feature; a failed document is a
+      // missing document.
+      let graph = { entities: 0, located: 0, relations: 0 };
+      try {
+        graph = await this.graphExtraction.extractForDocument(
+          documentId,
+          extracted.text,
+          chunks,
+        );
+      } catch (error) {
+        this.logger.error(
+          `[${documentId}] graph extraction failed; document stays completed with an empty graph: ${(error as Error).message}`,
+        );
+      }
 
       this.logger.log(
         `[${documentId}] completed: ${extracted.textSource}, ${chunks.length} chunks, ` +

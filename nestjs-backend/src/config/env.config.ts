@@ -48,6 +48,12 @@ export const envSchema = z.object({
    * the service does that.
    */
   GEMINI_EMBEDDING_MODEL: z.string().default('gemini-embedding-001'),
+  /**
+   * Minimum gap between Gemini generate calls. The free tier allows five a
+   * minute per model and one ingest issues six for a two-chunk document, so
+   * 13000 makes that plan usable. Set 0 on a paid key.
+   */
+  GEMINI_MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().min(0).default(0),
 
   AWS_REGION: z.string().default('ap-southeast-1'),
   AWS_ACCESS_KEY_ID: z.string().optional(),
