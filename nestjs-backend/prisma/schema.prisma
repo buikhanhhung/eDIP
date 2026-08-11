@@ -68,7 +68,8 @@ model Document {
   uploadedAt  DateTime  @default(now())
   processedAt DateTime?
 
-  entities DocumentEntity[]
+  entities  DocumentEntity[]
+  relations EntityRelation[]
 
   @@index([status])
   @@index([documentType])
@@ -81,11 +82,69 @@ model Entity {
   normalizedName String
   displayName    String
 
-  documents DocumentEntity[]
+  /// One or two sentences grounded in the source text. Embedded for the
+  /// similarity lookup that merges differently-spelled mentions.
+  description String?
+
+  /// Spellings folded into this entity by the vector-similarity path. The
+  /// canonical `displayName` never changes on a merge, so a later correction
+  /// can tell what was absorbed.
+  aliases String[] @default([])
+
+  /// vector(1024) over `displayName`, added in SQL — see the migration.
+  /// Prisma cannot express the type, and leaving the column out of the model
+  /// makes the next `migrate dev` drop it as drift.
+  nameEmbedding Unsupported("vector(1024)")? @map("name_embedding")
+
+  documents      DocumentEntity[]
+  relationsFrom  EntityRelation[] @relation("relationSource")
+  relationsTo    EntityRelation[] @relation("relationTarget")
 
   /// Unique on (type, normalizedName), not on normalizedName alone: upserts use
   /// `update: {}`, so a name-only key would let the first-seen type win forever.
   @@unique([type, normalizedName])
+}
+
+/// A stated connection between two entities, extracted from one document.
+///
+/// Every row carries the sentence it came from. An edge nobody can trace back
+/// to a span of text is an assertion the product cannot defend, and a graph of
+/// those is worse than no graph: a wrong edge looks exactly like a right one.
+model EntityRelation {
+  id String @id @default(uuid())
+
+  sourceEntityId String
+  targetEntityId String
+  source         Entity @relation("relationSource", fields: [sourceEntityId], references: [id], onDelete: Cascade)
+  target         Entity @relation("relationTarget", fields: [targetEntityId], references: [id], onDelete: Cascade)
+
+  /// SNAKE_CASE label, e.g. PROVIDES_SERVICES_TO.
+  type String
+
+  /// The relationship restated as one standalone fact.
+  description String
+
+  /// Verbatim sentence from the document that supports this edge.
+  evidence String
+
+  /// Offsets of `evidence` inside `Document.textContent`, or null when the
+  /// sentence could not be located verbatim. Computed here, never taken from
+  /// the model.
+  evidenceStart Int?
+  evidenceEnd   Int?
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  confidence Float?
+  createdAt  DateTime @default(now())
+
+  /// Re-running extraction for a document replaces its edges rather than
+  /// duplicating them.
+  @@unique([documentId, sourceEntityId, targetEntityId, type])
+  @@index([sourceEntityId])
+  @@index([targetEntityId])
+  @@index([documentId])
 }
 
 model DocumentEntity {

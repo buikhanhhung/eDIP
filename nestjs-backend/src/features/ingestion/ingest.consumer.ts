@@ -1,5 +1,5 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Inject, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type { Job } from 'bullmq';
 import { BedrockEmbeddingService } from '@infrastructure/bedrock/bedrock-embedding.service';
@@ -8,9 +8,8 @@ import { LocalStorageService } from '@infrastructure/storage/local-storage.servi
 import { VectorStoreService } from '@infrastructure/vector-store/vector-store.service';
 import { PrismaService } from '@shared/database/prisma.service';
 import { QUEUE_NAMES } from '@shared/queue/queue.constants';
-import { GRAPH_STORE } from '@features/graph/graph.di-token';
-import type { IGraphStore } from '@features/graph/graph.port';
 import { DocumentAnalysisService } from './services/document-analysis.service';
+import { EntityExtractionService } from './services/entity-extraction.service';
 import { TextExtractionService } from './services/text-extraction.service';
 
 export interface IngestJobData {
@@ -42,7 +41,7 @@ export class IngestConsumer extends WorkerHost {
     private readonly analysis: DocumentAnalysisService,
     private readonly vectorStore: VectorStoreService,
     private readonly embeddings: BedrockEmbeddingService,
-    @Inject(GRAPH_STORE) private readonly graph: IGraphStore,
+    private readonly graphExtraction: EntityExtractionService,
   ) {
     super();
   }
@@ -123,15 +122,20 @@ export class IngestConsumer extends WorkerHost {
         },
       });
 
-      step('link-entities');
-      const { linked, withOffset } = await this.graph.upsertDocumentEntities(
+      // Entities and their relations come from the chunk-level two-pass
+      // pipeline, which runs after the document row is complete: a failure
+      // here leaves a readable, searchable document with an empty graph,
+      // rather than discarding an extraction that already succeeded.
+      step('extract-graph');
+      const graph = await this.graphExtraction.extractForDocument(
         documentId,
         extracted.text,
-        analysis.entities.map((entity) => ({ type: entity.type, value: entity.text })),
+        chunks,
       );
 
       this.logger.log(
-        `[${documentId}] completed: ${extracted.textSource}, ${chunks.length} chunks, ${linked} entities (${withOffset} located)`,
+        `[${documentId}] completed: ${extracted.textSource}, ${chunks.length} chunks, ` +
+          `${graph.entities} entities (${graph.located} located), ${graph.relations} relations`,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

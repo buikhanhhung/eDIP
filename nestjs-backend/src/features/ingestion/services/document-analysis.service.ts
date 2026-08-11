@@ -62,7 +62,7 @@ export class DocumentAnalysisService {
     }
 
     this.logger.log(
-      `${filename}: ${parsed.data.documentType} (${parsed.data.typeConfidence}) · ${parsed.data.entities.length} entities`,
+      `${filename}: ${parsed.data.documentType} (confidence ${parsed.data.typeConfidence})`,
     );
     return parsed.data;
   }

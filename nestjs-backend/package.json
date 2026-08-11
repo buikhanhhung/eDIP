@@ -87,6 +87,7 @@
     ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
+    "maxWorkers": 2,
     "moduleNameMapper": {
       "^@common/(.*)$": "<rootDir>/common/$1",
       "^@config/(.*)$": "<rootDir>/config/$1",

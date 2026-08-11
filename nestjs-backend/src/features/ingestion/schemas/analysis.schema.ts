@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { ENTITY_TYPES } from '@features/graph/entity-normalizer';
 
 export const DOCUMENT_TYPES = [
   'contract',
@@ -14,11 +13,10 @@ export const DOCUMENT_TYPES = [
  * The analysis contract, in one place: this schema is both the JSON Schema sent
  * to Claude as a tool definition and the parser applied to what comes back.
  *
- * Character offsets are deliberately absent. Asking the model for them costs
- * tokens and latency for numbers that are recomputed server-side with
- * `indexOf` anyway — and offset arithmetic over multi-byte Vietnamese is among
- * the things a language model is worst at. The mention text must be verbatim;
- * the position is derived from it.
+ * Document-level only. Entities used to be extracted here too; they moved to
+ * the chunk-level two-pass pipeline in `entity-extraction.service.ts`, which
+ * also produces the typed relations between them. Keeping both would mean
+ * paying twice for the same extraction and then reconciling two answers.
  */
 export const analysisSchema = z.object({
   documentType: z.enum(DOCUMENT_TYPES),
@@ -30,12 +28,6 @@ export const analysisSchema = z.object({
   date: z.string().nullable(),
   amount: z.string().nullable(),
   keywords: z.array(z.string()),
-  entities: z.array(
-    z.object({
-      type: z.enum(ENTITY_TYPES),
-      text: z.string().min(1),
-    }),
-  ),
 });
 
 export type DocumentAnalysis = z.infer<typeof analysisSchema>;
@@ -53,20 +45,6 @@ export const ANALYSIS_TOOL_SCHEMA: Record<string, unknown> = {
     date: { type: ['string', 'null'], description: 'Main document date, ISO 8601, null if absent' },
     amount: { type: ['string', 'null'], description: 'Main amount with currency, null if absent' },
     keywords: { type: 'array', items: { type: 'string' } },
-    entities: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          type: { type: 'string', enum: [...ENTITY_TYPES] },
-          text: {
-            type: 'string',
-            description: 'Copied verbatim from the document, character for character',
-          },
-        },
-        required: ['type', 'text'],
-      },
-    },
   },
   required: [
     'documentType',
@@ -78,6 +56,5 @@ export const ANALYSIS_TOOL_SCHEMA: Record<string, unknown> = {
     'date',
     'amount',
     'keywords',
-    'entities',
   ],
 };

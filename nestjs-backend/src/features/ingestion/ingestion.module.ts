@@ -7,12 +7,19 @@ import { IngestConsumer } from './ingest.consumer';
 import { IngestionController } from './ingestion.controller';
 import { IngestionService } from './ingestion.service';
 import { DocumentAnalysisService } from './services/document-analysis.service';
+import { EntityExtractionService } from './services/entity-extraction.service';
 import { TextExtractionService } from './services/text-extraction.service';
 
 @Module({
   imports: [StorageModule, BedrockModule, VectorStoreModule, GraphModule],
   controllers: [IngestionController],
-  providers: [IngestionService, IngestConsumer, TextExtractionService, DocumentAnalysisService],
+  providers: [
+    IngestionService,
+    IngestConsumer,
+    TextExtractionService,
+    DocumentAnalysisService,
+    EntityExtractionService,
+  ],
   exports: [IngestionService],
 })
 export class IngestionModule {}

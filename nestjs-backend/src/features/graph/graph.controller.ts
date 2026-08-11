@@ -17,11 +17,19 @@ export class GraphController {
 
   @RequirePermission('view')
   @Get()
-  getGraph(@Query('minShared') minShared?: string, @Query('types') types?: string) {
+  getGraph(
+    @Query('minShared') minShared?: string,
+    @Query('types') types?: string,
+    @Query('relations') relations?: string,
+  ) {
     const parsed = Number(minShared);
     return this.graph.getGraph({
       minShared: Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_MIN_SHARED,
       types: parseTypes(types),
+      // Off unless asked: typed edges are only present for documents that went
+      // through extraction, and a canvas mixing "no relations here" with
+      // "relations not requested" is unreadable.
+      includeRelations: relations === 'true' || relations === '1',
     });
   }
 
@@ -29,6 +37,13 @@ export class GraphController {
   @Get('entities/:id/documents')
   getDocuments(@Param('id') id: string) {
     return this.graph.getDocumentsForEntity(id);
+  }
+
+  /** Typed relations touching an entity, each with the sentence behind it. */
+  @RequirePermission('view')
+  @Get('entities/:id/relations')
+  getRelations(@Param('id') id: string) {
+    return this.graph.getRelationsForEntity(id);
   }
 }
 
