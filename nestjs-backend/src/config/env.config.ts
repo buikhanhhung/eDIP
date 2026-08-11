@@ -69,6 +69,9 @@ export const envSchema = z.object({
 
   STORAGE_DIR: z.string().default('./storage'),
 
+  /** Where the web app is served from. Only consulted in production. */
+  WEB_ORIGIN: z.string().default('http://localhost:5173'),
+
   SEED_ADMIN_EMAIL: z.string().email().default('admin@ecloudvalley.demo'),
   SEED_USER_EMAIL: z.string().email().default('user@ecloudvalley.demo'),
   SEED_VIEWER_EMAIL: z.string().email().default('viewer@ecloudvalley.demo'),
