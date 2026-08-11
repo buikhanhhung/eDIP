@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import { Injectable, Logger } from '@nestjs/common';
-import { BedrockEmbeddingService } from '@infrastructure/bedrock/bedrock-embedding.service';
-import { BedrockLlmService } from '@infrastructure/bedrock/bedrock-llm.service';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { EMBEDDING_SERVICE, LLM_SERVICE } from '@infrastructure/ai/ai.di-token';
+import type { IEmbeddingService, ILlmService } from '@infrastructure/ai/ai.port';
 import { VectorStoreService, type ChunkHit } from '@infrastructure/vector-store/vector-store.service';
 import { PrismaService } from '@shared/database/prisma.service';
 import { fuseRanks } from '@features/search/rrf';
@@ -41,8 +41,8 @@ export class AskService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly embeddings: BedrockEmbeddingService,
-    private readonly llm: BedrockLlmService,
+    @Inject(EMBEDDING_SERVICE) private readonly embeddings: IEmbeddingService,
+    @Inject(LLM_SERVICE) private readonly llm: ILlmService,
     private readonly vectorStore: VectorStoreService,
   ) {}
 

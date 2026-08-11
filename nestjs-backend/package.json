@@ -40,6 +40,7 @@
     "ioredis": "^6.0.0",
     "mammoth": "^1.12.1",
     "nestjs-zod": "^5.5.0",
+    "openai": "^7.4.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pdfjs-dist": "^6.2.108",

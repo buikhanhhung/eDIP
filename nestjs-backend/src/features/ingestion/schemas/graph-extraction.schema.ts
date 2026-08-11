@@ -59,10 +59,13 @@ export const NER_TOOL_SCHEMA: Record<string, unknown> = {
           confidence: { type: 'number', minimum: 0, maximum: 1 },
         },
         required: ['name', 'type', 'description', 'confidence'],
+        additionalProperties: false,
       },
     },
   },
   required: ['entities'],
+  // Required by OpenAI's strict structured outputs; Bedrock ignores it.
+  additionalProperties: false,
 };
 
 export const NER_SYSTEM_PROMPT = [
@@ -123,6 +126,7 @@ export const VERIFY_TOOL_SCHEMA: Record<string, unknown> = {
           description: { type: 'string', maxLength: 500 },
         },
         required: ['name', 'type', 'description'],
+        additionalProperties: false,
       },
     },
     relationships: {
@@ -148,10 +152,12 @@ export const VERIFY_TOOL_SCHEMA: Record<string, unknown> = {
           confidence: { type: 'number', minimum: 0, maximum: 1 },
         },
         required: ['source', 'target', 'type', 'description', 'evidence', 'confidence'],
+        additionalProperties: false,
       },
     },
   },
   required: ['entities', 'relationships'],
+  additionalProperties: false,
 };
 
 export const VERIFY_SYSTEM_PROMPT = [

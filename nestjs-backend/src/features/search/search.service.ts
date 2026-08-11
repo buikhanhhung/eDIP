@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { splitSearchTerms } from '@common/text/ts-query';
-import { BedrockEmbeddingService } from '@infrastructure/bedrock/bedrock-embedding.service';
+import { EMBEDDING_SERVICE } from '@infrastructure/ai/ai.di-token';
+import type { IEmbeddingService } from '@infrastructure/ai/ai.port';
 import { VectorStoreService } from '@infrastructure/vector-store/vector-store.service';
 import { PrismaService } from '@shared/database/prisma.service';
 import { fuseRanks } from './rrf';
@@ -40,7 +41,7 @@ export class SearchService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly embeddings: BedrockEmbeddingService,
+    @Inject(EMBEDDING_SERVICE) private readonly embeddings: IEmbeddingService,
     private readonly vectorStore: VectorStoreService,
   ) {}
 

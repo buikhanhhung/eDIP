@@ -22,6 +22,22 @@ export const envSchema = z.object({
   FALKORDB_PORT: z.coerce.number().int().positive().default(6384),
   FALKORDB_GRAPH: z.string().default('edip'),
 
+  // Which provider backs the three model capabilities. Switching is a restart,
+  // not a rebuild — see infrastructure/ai/ai.module.ts.
+  AI_PROVIDER: z.enum(['bedrock', 'openai']).default('bedrock'),
+
+  OPENAI_API_KEY: z.string().optional(),
+  /** Set only for an Azure or gateway endpoint; empty means api.openai.com. */
+  OPENAI_BASE_URL: z.string().optional(),
+  OPENAI_LLM_MODEL: z.string().default('gpt-4o'),
+  OPENAI_VISION_MODEL: z.string().default('gpt-4o'),
+  /**
+   * text-embedding-3 models accept a `dimensions` parameter, which is what
+   * lets them fill the same 1024-wide column Bedrock does. Changing this to a
+   * model without that parameter means migrating every stored vector.
+   */
+  OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-large'),
+
   AWS_REGION: z.string().default('ap-southeast-1'),
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),

@@ -1,9 +1,9 @@
-import type { ImageFormat } from '@aws-sdk/client-bedrock-runtime';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { TextSource } from '@prisma/client';
 import mammoth from 'mammoth';
 import { extractText, renderPageAsImage } from 'unpdf';
-import { BedrockVisionService } from '@infrastructure/bedrock/bedrock-vision.service';
+import { VISION_SERVICE } from '@infrastructure/ai/ai.di-token';
+import type { IVisionService, VisionImageFormat } from '@infrastructure/ai/ai.port';
 import { allowedTypeFor, extensionOf, rejectionMessage } from '@infrastructure/storage/allowlist';
 import { ensurePdfjs } from './pdfjs-init';
 
@@ -21,7 +21,7 @@ const MAX_VISION_PAGES = 5;
 /** Above 1 the text is legible to the model; 2 is the usual trade. */
 const RENDER_SCALE = 2;
 
-const IMAGE_FORMATS: Record<string, ImageFormat> = {
+const IMAGE_FORMATS: Record<string, VisionImageFormat> = {
   png: 'png',
   jpg: 'jpeg',
   jpeg: 'jpeg',
@@ -39,7 +39,7 @@ const IMAGE_FORMATS: Record<string, ImageFormat> = {
 export class TextExtractionService {
   private readonly logger = new Logger(TextExtractionService.name);
 
-  constructor(private readonly vision: BedrockVisionService) {}
+  constructor(@Inject(VISION_SERVICE) private readonly vision: IVisionService) {}
 
   async extract(buffer: Buffer, filename: string): Promise<ExtractionResult> {
     const allowed = allowedTypeFor(filename);

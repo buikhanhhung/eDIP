@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { BedrockLlmService } from '@infrastructure/bedrock/bedrock-llm.service';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { LLM_SERVICE } from '@infrastructure/ai/ai.di-token';
+import type { ILlmService } from '@infrastructure/ai/ai.port';
 import {
   ANALYSIS_TOOL_SCHEMA,
   analysisSchema,
@@ -33,7 +34,7 @@ const SYSTEM_PROMPT = [
 export class DocumentAnalysisService {
   private readonly logger = new Logger(DocumentAnalysisService.name);
 
-  constructor(private readonly llm: BedrockLlmService) {}
+  constructor(@Inject(LLM_SERVICE) private readonly llm: ILlmService) {}
 
   async analyse(text: string, filename: string): Promise<DocumentAnalysis> {
     const excerpt = text.slice(0, MAX_ANALYSIS_CHARS);

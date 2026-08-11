@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { BedrockModule } from '@infrastructure/bedrock/bedrock.module';
+import { AiModule } from '@infrastructure/ai/ai.module';
 import { VectorStoreModule } from '@infrastructure/vector-store/vector-store.module';
 import { AskController } from './ask.controller';
 import { AskService } from './ask.service';
 
 @Module({
-  imports: [BedrockModule, VectorStoreModule],
+  imports: [AiModule, VectorStoreModule],
   controllers: [AskController],
   providers: [AskService],
 })

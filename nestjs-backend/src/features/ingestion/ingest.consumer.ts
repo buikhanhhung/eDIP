@@ -2,7 +2,8 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Inject, Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type { Job } from 'bullmq';
-import { BedrockEmbeddingService } from '@infrastructure/bedrock/bedrock-embedding.service';
+import { EMBEDDING_SERVICE } from '@infrastructure/ai/ai.di-token';
+import type { IEmbeddingService } from '@infrastructure/ai/ai.port';
 import { CHUNKING_STRATEGY, splitText } from '@infrastructure/chunking/text-splitter';
 import { LocalStorageService } from '@infrastructure/storage/local-storage.service';
 import { VectorStoreService } from '@infrastructure/vector-store/vector-store.service';
@@ -42,7 +43,7 @@ export class IngestConsumer extends WorkerHost {
     private readonly extraction: TextExtractionService,
     private readonly analysis: DocumentAnalysisService,
     private readonly vectorStore: VectorStoreService,
-    private readonly embeddings: BedrockEmbeddingService,
+    @Inject(EMBEDDING_SERVICE) private readonly embeddings: IEmbeddingService,
     private readonly graphExtraction: EntityExtractionService,
     @Inject(GRAPH_STORE) private readonly graph: IGraphStore,
   ) {

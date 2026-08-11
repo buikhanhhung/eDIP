@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { FalkorDB, type Graph } from 'falkordb';
 import type { EnvConfig } from '@config/env.config';
+import { EMBEDDING_DIMENSION } from '@infrastructure/ai/ai.port';
 import type { CypherParams, IFalkorDbClient } from './falkordb.port';
 
 /**
@@ -17,8 +18,8 @@ const SAFE_GRAPH_NAME = /^[A-Za-z0-9_]{1,64}$/;
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 
-/** Must match the embedding model output and the pgvector column width. */
-const EMBEDDING_DIMENSION = 1024;
+// Width comes from the shared AI port, so the graph index, the pgvector column
+// and both embedding providers cannot drift apart.
 
 @Injectable()
 export class FalkorDbService implements IFalkorDbClient, OnModuleInit, OnModuleDestroy {

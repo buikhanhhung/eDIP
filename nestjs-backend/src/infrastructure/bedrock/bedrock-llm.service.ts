@@ -6,19 +6,8 @@ import {
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvConfig } from '@config/env.config';
+import type { ChatMessage, ILlmService, ToolSpec } from '@infrastructure/ai/ai.port';
 import { assertBedrockConfigured, createBedrockClient } from './bedrock-client';
-
-export interface BedrockToolSpec {
-  name: string;
-  description: string;
-  /** JSON Schema for the tool input — this is what pins the response shape. */
-  inputSchema: Record<string, unknown>;
-}
-
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
 
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0;
@@ -33,7 +22,7 @@ const DEFAULT_TEMPERATURE = 0;
  * strip-then-parse-then-retry loop to maintain.
  */
 @Injectable()
-export class BedrockLlmService {
+export class BedrockLlmService implements ILlmService {
   private readonly logger = new Logger(BedrockLlmService.name);
   private readonly client: BedrockRuntimeClient;
   private readonly modelId: string;
@@ -67,7 +56,7 @@ export class BedrockLlmService {
       .trim();
   }
 
-  async invokeWithToolUse<T>(tool: BedrockToolSpec, messages: ChatMessage[]): Promise<T> {
+  async invokeWithToolUse<T>(tool: ToolSpec, messages: ChatMessage[]): Promise<T> {
     assertBedrockConfigured(this.config, 'Document analysis');
 
     const response: ConverseCommandOutput = await this.client.send(

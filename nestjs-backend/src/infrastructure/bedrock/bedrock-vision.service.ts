@@ -1,17 +1,9 @@
-import {
-  BedrockRuntimeClient,
-  ConverseCommand,
-  type ImageFormat,
-} from '@aws-sdk/client-bedrock-runtime';
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvConfig } from '@config/env.config';
+import type { IVisionService, VisionImage } from '@infrastructure/ai/ai.port';
 import { assertBedrockConfigured, createBedrockClient } from './bedrock-client';
-
-export interface VisionImage {
-  bytes: Buffer;
-  format: ImageFormat;
-}
 
 const MAX_TOKENS = 4096;
 
@@ -30,7 +22,7 @@ const TRANSCRIBE_PROMPT = [
  * embeddings only — so this is written rather than ported.
  */
 @Injectable()
-export class BedrockVisionService {
+export class BedrockVisionService implements IVisionService {
   private readonly logger = new Logger(BedrockVisionService.name);
   private readonly client: BedrockRuntimeClient;
   private readonly modelId: string;

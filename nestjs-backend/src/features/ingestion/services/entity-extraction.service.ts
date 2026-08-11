@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { BedrockEmbeddingService } from '@infrastructure/bedrock/bedrock-embedding.service';
-import { BedrockLlmService } from '@infrastructure/bedrock/bedrock-llm.service';
+import { EMBEDDING_SERVICE, LLM_SERVICE } from '@infrastructure/ai/ai.di-token';
+import type { IEmbeddingService, ILlmService } from '@infrastructure/ai/ai.port';
 import { GRAPH_STORE } from '@features/graph/graph.di-token';
 import { normalizeEntityName, type EntityType } from '@features/graph/entity-normalizer';
 import type { IGraphStore, RelationInput } from '@features/graph/graph.port';
@@ -41,8 +41,8 @@ export class EntityExtractionService {
   private readonly logger = new Logger(EntityExtractionService.name);
 
   constructor(
-    private readonly llm: BedrockLlmService,
-    private readonly embeddings: BedrockEmbeddingService,
+    @Inject(LLM_SERVICE) private readonly llm: ILlmService,
+    @Inject(EMBEDDING_SERVICE) private readonly embeddings: IEmbeddingService,
     @Inject(GRAPH_STORE) private readonly graph: IGraphStore,
   ) {}
 

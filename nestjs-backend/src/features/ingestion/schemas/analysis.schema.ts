@@ -57,4 +57,8 @@ export const ANALYSIS_TOOL_SCHEMA: Record<string, unknown> = {
     'amount',
     'keywords',
   ],
+  // Required by OpenAI's strict structured outputs, and harmless to Bedrock:
+  // without it the platform rejects the schema rather than silently allowing
+  // extra keys.
+  additionalProperties: false,
 };

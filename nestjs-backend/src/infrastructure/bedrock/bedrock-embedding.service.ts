@@ -2,14 +2,18 @@ import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedroc
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvConfig } from '@config/env.config';
+import {
+  EMBEDDING_DIMENSION,
+  type EmbeddingInputType,
+  type IEmbeddingService,
+} from '@infrastructure/ai/ai.port';
 import { assertBedrockConfigured, createBedrockClient } from './bedrock-client';
 
 /** Max texts per request for Cohere embed. */
 const COHERE_BATCH_SIZE = 96;
 /** Max characters per text. */
 const MAX_TRUNCATE_LENGTH = 2047;
-/** Must match the width of the pgvector column. */
-export const EMBEDDING_DIMENSION = 1024;
+
 
 /**
  * Ported from ECVBot, which runs this against both model families in
@@ -18,7 +22,7 @@ export const EMBEDDING_DIMENSION = 1024;
  * re-running the migration.
  */
 @Injectable()
-export class BedrockEmbeddingService {
+export class BedrockEmbeddingService implements IEmbeddingService {
   private readonly logger = new Logger(BedrockEmbeddingService.name);
   private readonly client: BedrockRuntimeClient;
   private readonly modelId: string;
@@ -30,7 +34,7 @@ export class BedrockEmbeddingService {
 
   async generateEmbeddings(
     texts: string[],
-    inputType: 'search_document' | 'search_query' = 'search_document',
+    inputType: EmbeddingInputType = 'search_document',
   ): Promise<number[][]> {
     assertBedrockConfigured(this.config, 'Embedding');
 

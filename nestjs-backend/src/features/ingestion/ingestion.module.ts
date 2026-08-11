@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { BedrockModule } from '@infrastructure/bedrock/bedrock.module';
+import { AiModule } from '@infrastructure/ai/ai.module';
 import { StorageModule } from '@infrastructure/storage/storage.module';
 import { VectorStoreModule } from '@infrastructure/vector-store/vector-store.module';
 import { GraphModule } from '@features/graph/graph.module';
@@ -11,7 +11,7 @@ import { EntityExtractionService } from './services/entity-extraction.service';
 import { TextExtractionService } from './services/text-extraction.service';
 
 @Module({
-  imports: [StorageModule, BedrockModule, VectorStoreModule, GraphModule],
+  imports: [StorageModule, AiModule, VectorStoreModule, GraphModule],
   controllers: [IngestionController],
   providers: [
     IngestionService,
