@@ -12,6 +12,16 @@ interface RelatedDocument {
   documentType: string | null;
 }
 
+interface EntityRelation {
+  id: string;
+  type: string;
+  description: string;
+  evidence: string;
+  documentId: string;
+  otherEntityName: string;
+  direction: 'out' | 'in';
+}
+
 interface Props {
   node: { id: string; kind: string; label: string } | null;
   onClose: () => void;
@@ -25,6 +35,13 @@ export function NodeDrawer({ node, onClose, onFocus }: Props) {
     queryKey: ['graph-entity', node?.id],
     queryFn: async () =>
       (await apiClient.get<RelatedDocument[]>(`/graph/entities/${node!.id}/documents`)).data,
+    enabled: Boolean(node && isEntity),
+  });
+
+  const { data: relations } = useQuery({
+    queryKey: ['graph-entity-relations', node?.id],
+    queryFn: async () =>
+      (await apiClient.get<EntityRelation[]>(`/graph/entities/${node!.id}/relations`)).data,
     enabled: Boolean(node && isEntity),
   });
 
@@ -56,6 +73,33 @@ export function NodeDrawer({ node, onClose, onFocus }: Props) {
           >
             Mở tài liệu
           </Link>
+        )}
+
+        {isEntity && relations && relations.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Quan hệ ({relations.length})</p>
+            {relations.map((relation) => (
+              <div key={relation.id} className="rounded-md border p-2">
+                <p className="text-xs">
+                  <Badge variant="secondary">{relation.type}</Badge>{' '}
+                  <span className="text-muted-foreground">
+                    {relation.direction === 'out' ? '→' : '←'} {relation.otherEntityName}
+                  </span>
+                </p>
+                {/* Every typed edge shows the sentence it came from, so a
+                    reader can reject it without leaving the drawer. */}
+                <blockquote className="mt-1 border-l-2 pl-2 text-xs italic text-muted-foreground">
+                  “{relation.evidence}”
+                </blockquote>
+                <Link
+                  to={`/documents/${relation.documentId}`}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Tài liệu nguồn
+                </Link>
+              </div>
+            ))}
+          </div>
         )}
 
         {isEntity && (

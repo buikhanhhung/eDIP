@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { apiClient } from '@/lib/api-client';
-import { GraphCanvas, type GraphPayload } from './graph-canvas';
+import { GraphCanvas, type GraphEdge, type GraphPayload } from './graph-canvas';
 import { NodeDrawer } from './node-drawer';
+
+type GraphEdgeData = GraphEdge['data'];
 
 const ENTITY_TYPES = ['company', 'person', 'project', 'contract', 'invoice', 'department'] as const;
 
@@ -23,13 +26,19 @@ export function GraphPage() {
   // one-off name is a node is unreadable on a projector.
   const [minShared, setMinShared] = useState(2);
   const [types, setTypes] = useState<string[]>([...ENTITY_TYPES]);
+  const [showRelations, setShowRelations] = useState(true);
   const [selected, setSelected] = useState<{ id: string; kind: string; label: string } | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<GraphEdgeData | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['graph', minShared],
+    queryKey: ['graph', minShared, showRelations],
     queryFn: async () =>
-      (await apiClient.get<GraphPayload>('/graph', { params: { minShared } })).data,
+      (
+        await apiClient.get<GraphPayload>('/graph', {
+          params: { minShared, relations: showRelations },
+        })
+      ).data,
   });
 
   /**
@@ -83,6 +92,15 @@ export function GraphPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={showRelations}
+              onChange={(e) => setShowRelations(e.target.checked)}
+            />
+            Hiện quan hệ
+          </label>
+
           <label className="flex items-center gap-2 text-sm">
             Chia sẻ tối thiểu
             <input
@@ -138,8 +156,42 @@ export function GraphPage() {
                 payload={visible}
                 onSelect={(node) => setSelected(node)}
                 onFocus={(id) => setFocused(id)}
+                onSelectEdge={(edge) => setSelectedEdge(edge)}
               />
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedEdge && (
+        <Card>
+          <CardContent className="space-y-2 pt-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <Badge>{selectedEdge.label}</Badge>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Câu văn trong tài liệu sinh ra liên kết này:
+                </p>
+                {/* The evidence is what makes a typed edge checkable rather
+                    than something the reader has to take on trust. */}
+                <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
+                  “{selectedEdge.evidence}”
+                </blockquote>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedEdge(null)}>
+                  Đóng
+                </Button>
+                {selectedEdge.documentId && (
+                  <Link
+                    to={`/documents/${selectedEdge.documentId}`}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Mở tài liệu nguồn
+                  </Link>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
