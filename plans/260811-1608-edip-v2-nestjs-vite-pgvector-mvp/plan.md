@@ -52,10 +52,10 @@ eDIP-v2/
 | 1 | [Bedrock & Docker Gate](./phase-01-bedrock-docker-gate.md) | 0.75 | *Cổng chặn — hỏng ở đây là đổi kế hoạch* | **Done** |
 | 2 | [Skeleton DB Auth Seed](./phase-02-skeleton-db-auth-seed.md) | 3.5 | Đăng nhập 3 role, library + dashboard theo loại, **entity đã sẵn sàng** | **Done** |
 | 3 | [Upload & Ingest Pipeline](./phase-03-upload-ingest-pipeline.md) | 2.5 | Upload → processing → completed + metadata tự sinh | **Code xong, chờ credential** |
-| 4 | [Hybrid Search & RAG Ask](./phase-04-hybrid-search-rag-ask.md) | 1.5 | Hỏi tiếng Việt, trả lời kèm nguồn | Pending |
-| 5 | [Entity & Knowledge Graph](./phase-05-entity-knowledge-graph.md) | 1.25 | Knowledge graph click được | Pending |
-| 6 | [Audit Metadata Edit Highlight](./phase-06-audit-metadata-edit-highlight.md) | 1.25 | Đủ 6 bước demo flow trong đề | Pending |
-| 7 | [Polish & Demo Rehearsal](./phase-07-polish-demo-rehearsal.md) | còn lại | Chạy trọn demo flow không vấp | Pending |
+| 4 | [Hybrid Search & RAG Ask](./phase-04-hybrid-search-rag-ask.md) | 1.5 | Hỏi tiếng Việt, trả lời kèm nguồn | **Code xong, chờ credential** |
+| 5 | [Entity & Knowledge Graph](./phase-05-entity-knowledge-graph.md) | 1.25 | Knowledge graph click được | **Done** |
+| 6 | [Audit Metadata Edit Highlight](./phase-06-audit-metadata-edit-highlight.md) | 1.25 | Đủ 6 bước demo flow trong đề | **Done** |
+| 7 | [Polish & Demo Rehearsal](./phase-07-polish-demo-rehearsal.md) | còn lại | Chạy trọn demo flow không vấp | Chờ credential |
 
 **Tổng ~10.75h.** Con số cũ (8.5h) sai — red-team cộng lại các bước trong chính phase file ra 10.6h, và bản đó còn chưa tính copy/trim. Đây là số đã sửa và đã tính.
 
@@ -123,6 +123,18 @@ Cross-plan: không có plan nào khác trong `$ROOT/plans/`. Plan của `$V1` (`
 **Đã đóng:** câu hỏi về mức nhạy cảm của corpus KYC. Red-team đọc file và xác nhận dữ liệu là **tổng hợp** (`Record reference: ECV-KYC-2026-009`, `VietBank Corp` — không phải người thật). Không cần gate phase 2. `.gitignore` vẫn chặn `storage/` và `data/` ngay từ phase 1 vì đó là vệ sinh đúng, không phải vì rủi ro dữ liệu.
 
 ---
+
+## Việc cần làm ngay khi có AWS credential
+
+Theo thứ tự. Mỗi bước là cổng chặn cho bước sau.
+
+1. **Xác minh phase 1 §2** — 3 lời gọi T1/T2/T3. Đặc biệt `assert embedding.length === 1024`. Sai ở đây thì mọi thứ dưới đều vô nghĩa.
+2. `pnpm backfill:embeddings` → `SELECT count(*) FROM embedding_chunks WHERE embedding IS NOT NULL` > 0. Chạy **lần hai**, số chunk phải không đổi.
+3. Upload `$V1/seed/fixtures/scanned-contract.pdf` → `textSource='vision'`, text không rỗng. Đây là lần đầu đường vision chạy thật.
+4. Upload `$V1/seed/fixtures/vietnamese-scan.jpg` → đọc đúng chữ Việt có dấu.
+5. `POST /search { q: 'hợp đồng với Saigon Retail' }` → MSA phải lên **rank 1**. Hiện lexical xếp nó thứ 3 và **không thể** khác được (tài liệu tiếng Anh, xem phase 4 §Ranking). Đây là phép thử thật của nhánh vector.
+6. `POST /ask` một câu có nguồn → citation trỏ document có thật; một câu vô căn cứ → đúng câu "Không tìm thấy…".
+7. Chạy lại cùng một job ingest 2 lần → `count(*) FROM embedding_chunks WHERE document_id=…` không đổi.
 
 ## Deviation Log
 

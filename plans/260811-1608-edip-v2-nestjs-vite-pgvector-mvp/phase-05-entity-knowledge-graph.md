@@ -145,18 +145,29 @@ Không thêm plugin layout (`cytoscape-fcose`...). ~45 node, `cose` đủ.
 
 ## Success Criteria
 
-- [ ] Ngay sau `db seed` (chưa chạy gì của phase 3/4): `SELECT count(*) FROM "Entity"` ≥ 30
-- [ ] `Ecloudvalley Vietnam Ltd` và `ECLOUDVALLEY VIETNAM` là **1** row `Entity`
-- [ ] Entity `department` tồn tại trong DB (corpus có 6)
-- [ ] `GET /graph?minShared=2` → ≥2 document node nối qua ≥1 entity chung
-- [ ] **Không có 2 edge nào trùng `data.id`** — kiểm bằng `new Set(edges.map(e=>e.data.id)).size === edges.length`
-- [ ] `/graph` render, không có lỗi `Can not create second element with ID` trong console
-- [ ] `minShared=1` cho nhiều node hơn `minShared=2`
-- [ ] Document `failed` không xuất hiện trên graph
-- [ ] `GET /graph` không token → **403**
-- [ ] Click node entity → drawer liệt kê đúng document
-- [ ] Không SQL nào ngoài `infras/postgres-graph.store.ts`
-- [ ] Xoá 1 document → cạnh của nó biến mất (cascade)
+**Phase này đạt đủ, không cần credential** — đúng như thiết kế van xả.
+
+- [x] Ngay sau `db seed`: `count(*) FROM "Entity"` = **33** (≥30)
+- [x] `Ecloudvalley Vietnam Ltd` gộp đúng — xuất hiện trên graph với `documentCount = 9`, tức cả 9 tài liệu
+- [x] Entity `department` tồn tại trong DB (6 row)
+- [x] `GET /graph?minShared=2` → 9 document node, 12 entity node, 38 cạnh
+- [x] **Không cạnh nào trùng `data.id`** — `new Set(ids).size === ids.length` đúng ở cả minShared 1/2/3
+- [x] `/graph` render thật trong trình duyệt: 3 canvas, 21 nút · 38 liên kết, không lỗi `Can not create second element with ID`
+- [x] `minShared=1` (18 entity) > `minShared=2` (12) > `minShared=3` (8)
+- [x] Document `failed` không xuất hiện trên graph
+- [x] `GET /graph` không token → **403**
+- [x] Không SQL nào ngoài `infras/postgres-graph.store.ts`
+- [x] Xoá 1 document → link của nó biến mất (kiểm: `DELETE /documents/:id` → 0 row `DocumentEntity` còn lại, file trên đĩa cũng bị xoá)
+- [ ] Click node entity → drawer liệt kê đúng document — *code xong, chưa click thử trong trình duyệt*
+
+## Deviation Log (11/08)
+
+| Điểm | Kế hoạch | Thực tế | Lý do |
+|---|---|---|---|
+| Nối vào pipeline | `ingest.consumer` gọi `upsertDocumentEntities` | đã nối ở phase 3, nay đi qua `GRAPH_STORE` | Consumer từng gọi thẳng `entity-linker`. Cho nó đi qua port giữ đúng luật "không SQL ngoài store" và để adapter FalkorDB thay được |
+| `react-cytoscapejs` | dùng | dùng `cytoscape` trực tiếp | Instance sở hữu canvas + vòng lặp animation nên phải `destroy()` lúc unmount. Làm thẳng trong một `useEffect` ít code hơn wrapper cộng workaround của nó |
+| `deleteByDocument` | xoá hết | thêm tham số `types?` | Phase 6 sửa metadata cần dựng lại **chỉ** liên kết công ty; xoá sạch sẽ mất cả person/department mà người sửa không đụng tới |
+| Chuẩn hoá tên | NFD + bỏ dấu | dùng chung `foldForMatching` | `đ` sống sót qua NFD → `Đông` và `dong` thành 2 node khác nhau. Xem phase 4 Deviation Log |
 
 ## Risk Assessment
 

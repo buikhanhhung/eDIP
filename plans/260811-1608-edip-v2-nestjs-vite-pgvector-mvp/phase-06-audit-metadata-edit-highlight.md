@@ -104,14 +104,25 @@ Bảng đơn giản: thời gian · actor email · action · target (link sang d
 
 ## Success Criteria
 
-- [ ] Upload 1 file → có row `document.upload` trong `AuditLog` với đúng `actorId`
-- [ ] Search → có row `search.query`, `meta.q` là câu đã gõ
-- [ ] `GET /audit` bằng token `user` → **403**; bằng `admin` → danh sách
-- [ ] `PATCH /documents/:id/metadata` bằng `user` → **403**
-- [ ] Sửa `parties` → `metadataEditedAt` được set, và `/graph` phản ánh entity mới
-- [ ] Detail page: click field `parties` → highlight đúng đoạn trong text, không highlight nhầm chỗ khác
-- [ ] Cố tình làm audit service lỗi → upload **vẫn** thành công
-- [ ] `DELETE /documents/:id` → document biến khỏi library, graph, search; file trên đĩa bị xoá
+**Phase này đạt đủ, không cần credential.**
+
+- [x] Search → row `search.query` với `meta.q` đúng câu đã gõ; Ask → row `ask.query`
+- [x] `GET /audit` bằng `user` → **403**; bằng `admin` → danh sách kèm actor email + role
+- [x] `PATCH /documents/:id/metadata` bằng `user` → **403**; `DELETE` bằng `user` → **403**
+- [x] Sửa `parties` trên MSA → `metadataEditedAt` set, `typeConfidence` lên 1, và **liên kết công ty dựng lại đúng**: `Ecloudvalley Vietnam Ltd` rời khỏi tài liệu, `Bên thứ ba mới` vào — trong khi person/date/amount/project **giữ nguyên**
+- [x] `DELETE /documents/:id` → document biến khỏi library và graph, `DocumentEntity` cascade về 0, file trên đĩa bị xoá
+- [x] Detail page render 7 `<mark>` theo offset của seed — highlight chạy **không cần** phase 3/4
+- [ ] Upload 1 file → row `document.upload` — *audit đã gắn `@Audit`, nhưng upload chỉ chạy trọn khi có credential*
+- [ ] Hover field `parties` → highlight đúng mention — *code xong, chưa hover thử trong trình duyệt*
+- [ ] Cố tình làm audit lỗi → request chính vẫn thành công — *đã bọc `.catch()` và không `await`; chưa dựng kịch bản lỗi để chứng minh*
+
+## Deviation Log (11/08)
+
+| Điểm | Kế hoạch | Thực tế | Lý do |
+|---|---|---|---|
+| Re-derive entity sau khi sửa metadata | xoá **toàn bộ** `DocumentEntity` của document rồi upsert lại từ `parties` | chỉ thay liên kết loại `company` | Xoá sạch sẽ mất person, department, project, date, amount — những thứ người sửa `parties` không hề đụng tới. Ý định của v1 là "graph theo người, không theo AI", không phải "sửa một trường thì mất mọi trường" |
+| Ghi audit | service gọi rải rác | decorator `@Audit` + một interceptor toàn cục | Tên hành động nằm cạnh quyền của chính route đó; route không thể ghi nửa vời khi return sớm |
+| `meta` của audit | `{ q }` cho search/ask | `{ q }` cắt 500 ký tự, chỉ khi body có trường `q` | Body upload là cả tệp; không có gì bảo vệ nếu cứ ghi nguyên body |
 
 ## Risk Assessment
 

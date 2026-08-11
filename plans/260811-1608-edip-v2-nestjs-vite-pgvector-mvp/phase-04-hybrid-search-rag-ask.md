@@ -185,18 +185,43 @@ Query gợi ý sẵn: `hợp đồng với Saigon Retail`, `hop dong` (không d�
 
 ## Success Criteria
 
-- [ ] `backfill-embeddings.ts` xong → `SELECT count(*) FROM embedding_chunks WHERE embedding IS NOT NULL` > 0
-- [ ] Chạy backfill **hai lần** → số chunk không đổi
-- [ ] `POST /search { q: 'hợp đồng' }` → trả document contract
-- [ ] `POST /search { q: 'hop dong' }` → **cùng** document đó
-- [ ] Hai truy vấn khác nhau cho ra **snippet khác nhau** (chứng minh không rơi về câu mở đầu)
-- [ ] `hợp đồng với Saigon Retail` → tài liệu MSA Saigon Retail ở **rank 1**, không phải hợp đồng bất kỳ
-- [ ] Document `failed` **không** xuất hiện trong bất kỳ kết quả search nào
-- [ ] `POST /search` bằng token `viewer` → **403**
-- [ ] `POST /ask { q: 'tóm tắt chính sách bảo mật' }` → answer + ≥1 citation trỏ document có thật
-- [ ] `POST /ask { q: 'giá cổ phiếu Apple hôm nay' }` → "Không tìm thấy...", citations rỗng
-- [ ] Upload tài liệu chứa chuỗi `[a3f9-1]` rồi hỏi → citation giả **không** lọt (nonce đổi mỗi request)
-- [ ] Tắt mạng ra Bedrock → `/search` vẫn trả kết quả từ nhánh lexical, **không** 500
+Kiểm ngày 11/08 khi `.env` **chưa có** AWS credential — tức nhánh vector luôn hỏng. Đó lại là điều kiện tốt để chứng minh thiết kế `allSettled`.
+
+- [x] Tắt đường ra Bedrock → `/search` vẫn trả kết quả từ nhánh lexical, **không** 500, cờ `degraded: true`
+- [x] `POST /search { q: 'hop dong' }` và `{ q: 'hợp đồng' }` → **cùng** tài liệu top (kiểm bằng body UTF-8 gửi từ file; shell Windows làm hỏng ký tự có dấu nếu truyền trực tiếp)
+- [x] Hai truy vấn khác nhau cho ra **snippet khác nhau**, và `matchStart/matchEnd` trỏ đúng vào từ khớp — không rơi về câu mở đầu
+- [x] Document `failed` **không** xuất hiện trong kết quả search
+- [x] `POST /search` bằng token `viewer` → **403**; `user` → 200
+- [x] `POST /ask` khi chưa có chunk nào → trả đúng câu "Không tìm thấy thông tin này trong kho tài liệu.", `citations: []`, `unsourced: false` — **không gọi LLM, không bịa**
+- [ ] `backfill-embeddings.ts` → `count(*) WHERE embedding IS NOT NULL` > 0 — *chặn: cần credential*
+- [ ] Chạy backfill hai lần → số chunk không đổi — *chặn: cần credential*
+- [ ] `POST /ask` có nguồn → answer + ≥1 citation trỏ document có thật — *chặn*
+- [ ] Citation giả trong nội dung tài liệu không lọt qua nonce — *chặn (cơ chế đã có, chưa chạy được)*
+- [ ] `hợp đồng với Saigon Retail` → MSA Saigon Retail ở **rank 1** — **chưa đạt, và không thể đạt bằng nhánh lexical**. Xem §Ranking dưới.
+
+## Ranking: vì sao câu demo cần nhánh vector
+
+Đo thật trên corpus (11/08), query `hợp đồng với Saigon Retail` → term `[hop, dong, voi, saigon, retail]`:
+
+| Tài liệu | Số term khớp | ts_rank |
+|---|---:|---:|
+| `hop-dong-dich-vu-hanoi-logistics.md` | 3 (hop, dong, voi) | 0.0502 |
+| `invoice-saigon-retail-2026-04.md` | 2 (saigon, retail) | 0.0331 |
+| `contract-msa-saigon-retail.md` | 2 (saigon, retail) | 0.0331 |
+
+**MSA là tài liệu tiếng Anh** — nó không chứa "hợp đồng", chỉ chứa "Master Services Agreement". Không có cách nào để tìm kiếm từ khoá xếp nó trên một hợp đồng tiếng Việt khớp 3/5 term. Đây không phải lỗi tham số RRF; đây là giới hạn bản chất của lexical matching xuyên ngôn ngữ, và chính là việc embedding đa ngữ (Cohere multilingual / Titan) sinh ra để giải.
+
+**Việc phải làm khi có credential:** chạy lại đúng truy vấn này và xác nhận nhánh vector đẩy MSA lên rank 1. Nếu **không**, lúc đó mới là lỗi tham số — và phương án dự phòng đã ghi ở Risk: bỏ RRF, chuyển sang điểm chuẩn hoá cộng trọng số như v1.
+
+## Deviation Log (11/08)
+
+| Điểm | Kế hoạch | Thực tế | Lý do |
+|---|---|---|---|
+| Nhánh lexical | `plainto_tsquery` | `to_tsquery` nối bằng `\|` + sắp theo **coverage** rồi `ts_rank` | `plainto_tsquery` nối AND: chỉ một từ đệm ("với") không có trong tài liệu là **rỗng toàn bộ kết quả**. Đo được: câu demo trả 0 hit. Coverage-trước là bài học v1 (`COVERAGE_FLOOR`), viết bằng 1 subquery |
+| Gấp accent | mỗi nơi tự làm | `common/text/fold-accents.ts` dùng chung | NFD **không** tách `đ` (nó là chữ cái, không phải dấu) trong khi Postgres `unaccent` map `đ→d`. Lệch này làm snippet không tìm thấy vị trí khớp → rơi về câu mở đầu, đúng lỗi mà bỏ `ts_headline` để tránh. Cùng lỗi có ở `normalizeEntityName` (tách `Đông` khỏi `dong`) |
+| `vector-store.port.ts` + di-token | có | bỏ | Chỉ có một implementation và không có kế hoạch thứ hai. `GraphStorePort` thì giữ vì adapter FalkorDB là việc ngày 2 — port có mục đích thật |
+| `scripts/backfill-embeddings.ts` | client Prisma+Bedrock riêng | chạy qua `NestFactory.createApplicationContext` | Dùng lại đúng service và đúng luật chunk của pipeline. Script tự chép luật chunk là script sẽ lệch dần khỏi thứ nó backfill |
+| Jest | — | thêm `moduleNameMapper` | Spec đầu tiên import path alias làm cả suite không chạy được |
 
 ## Risk Assessment
 
