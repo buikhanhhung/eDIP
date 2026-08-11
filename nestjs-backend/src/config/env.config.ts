@@ -39,8 +39,8 @@ export const envSchema = z.object({
   OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-large'),
 
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_LLM_MODEL: z.string().default('gemini-2.5-flash'),
-  GEMINI_VISION_MODEL: z.string().default('gemini-2.5-flash'),
+  GEMINI_LLM_MODEL: z.string().default('gemini-3.5-flash-lite'),
+  GEMINI_VISION_MODEL: z.string().default('gemini-3.5-flash-lite'),
   /**
    * Must support `outputDimensionality`, for the same reason OpenAI must
    * support `dimensions`: the stored vectors are 1024 wide. Gemini's
@@ -49,9 +49,10 @@ export const envSchema = z.object({
    */
   GEMINI_EMBEDDING_MODEL: z.string().default('gemini-embedding-001'),
   /**
-   * Minimum gap between Gemini generate calls. The free tier allows five a
-   * minute per model and one ingest issues six for a two-chunk document, so
-   * 13000 makes that plan usable. Set 0 on a paid key.
+   * Minimum gap between Gemini generate calls, for models with a tight
+   * per-minute quota. `gemini-2.5-flash` allows five a minute on the free tier
+   * while one ingest issues six, so it needs ~13000; the flash-lite models took
+   * twelve calls back to back without complaint and need none.
    */
   GEMINI_MIN_REQUEST_INTERVAL_MS: z.coerce.number().int().min(0).default(0),
 
