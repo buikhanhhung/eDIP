@@ -77,8 +77,9 @@ Cross-plan: không có plan nào khác trong `$ROOT/plans/`. Plan của `$V1` (`
 | Hạng mục | Chốt | Không được đổi giữa chừng |
 |---|---|---|
 | Embedding dimension | **1024** | ✅ Cứng — đổi là phải migrate lại toàn bộ |
-| Embedding model | Cohere Embed Multilingual v3 (fallback Titan v2, cũng 1024d) | |
-| LLM | Claude qua Bedrock (vision + analyze + Q&A) | |
+| Nhà cung cấp model | **Bedrock hoặc OpenAI**, chọn bằng `AI_PROVIDER` | Đổi là restart, không phải build lại. Vector đã lưu vẫn dùng được vì cả hai đều phát 1024 chiều |
+| Embedding model | Bedrock: Cohere v3 / Titan v2 · OpenAI: `text-embedding-3-*` với tham số `dimensions: 1024` | Đổi sang model không hỗ trợ `dimensions` là phải migrate lại toàn bộ vector |
+| LLM | Claude qua Bedrock, hoặc GPT qua OpenAI (vision + analyze + Q&A) | |
 | Graph store | **FalkorDB, và chỉ FalkorDB** | Entity, mention, quan hệ không có bảng Postgres — đúng như ECVBot. `:Document` là bản chiếu từ row. Không khoá ngoại nào xuyên hai kho: xoá tài liệu phải xoá node tường minh |
 | Storage | Local disk volume | Không S3 hôm nay |
 | Queue | BullMQ + Redis, `attempts: 3` + backoff | Timebox 30 phút, quá thì `EventEmitter2` |
@@ -124,11 +125,24 @@ Cross-plan: không có plan nào khác trong `$ROOT/plans/`. Plan của `$V1` (`
 
 ---
 
-## Việc cần làm ngay khi có AWS credential
+## Việc cần làm ngay khi có credential (Bedrock **hoặc** OpenAI)
 
-Theo thứ tự. Mỗi bước là cổng chặn cho bước sau.
+Từ 12/08 không còn phụ thuộc riêng AWS. Cắm được cái nào trước thì chạy cái đó:
 
-1. **Xác minh phase 1 §2** — 3 lời gọi T1/T2/T3. Đặc biệt `assert embedding.length === 1024`. Sai ở đây thì mọi thứ dưới đều vô nghĩa.
+```
+# OpenAI
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+
+# hoặc Bedrock
+AI_PROVIDER=bedrock
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+```
+
+Rồi restart. Checklist dưới đây áp dụng như nhau cho cả hai — theo thứ tự, mỗi bước là cổng chặn cho bước sau.
+
+1. **Xác minh phase 1 §2** — 3 lời gọi T1/T2/T3. Đặc biệt `assert embedding.length === 1024`. Sai ở đây thì mọi thứ dưới đều vô nghĩa. Với OpenAI, đây cũng là chỗ chứng minh tham số `dimensions` thật sự cắt về 1024.
 2. `pnpm backfill:embeddings` → `SELECT count(*) FROM embedding_chunks WHERE embedding IS NOT NULL` > 0. Chạy **lần hai**, số chunk phải không đổi.
 3. Upload `$V1/seed/fixtures/scanned-contract.pdf` → `textSource='vision'`, text không rỗng. Đây là lần đầu đường vision chạy thật.
 4. Upload `$V1/seed/fixtures/vietnamese-scan.jpg` → đọc đúng chữ Việt có dấu.
