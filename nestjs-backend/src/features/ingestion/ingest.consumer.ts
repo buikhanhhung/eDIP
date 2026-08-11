@@ -1,13 +1,15 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type { Job } from 'bullmq';
+import { BedrockEmbeddingService } from '@infrastructure/bedrock/bedrock-embedding.service';
 import { CHUNKING_STRATEGY, splitText } from '@infrastructure/chunking/text-splitter';
 import { LocalStorageService } from '@infrastructure/storage/local-storage.service';
 import { VectorStoreService } from '@infrastructure/vector-store/vector-store.service';
 import { PrismaService } from '@shared/database/prisma.service';
 import { QUEUE_NAMES } from '@shared/queue/queue.constants';
-import { linkDocumentEntities } from '@features/graph/entity-linker';
+import { GRAPH_STORE } from '@features/graph/graph.di-token';
+import type { IGraphStore } from '@features/graph/graph.port';
 import { DocumentAnalysisService } from './services/document-analysis.service';
 import { TextExtractionService } from './services/text-extraction.service';
 
@@ -39,6 +41,8 @@ export class IngestConsumer extends WorkerHost {
     private readonly extraction: TextExtractionService,
     private readonly analysis: DocumentAnalysisService,
     private readonly vectorStore: VectorStoreService,
+    private readonly embeddings: BedrockEmbeddingService,
+    @Inject(GRAPH_STORE) private readonly graph: IGraphStore,
   ) {
     super();
   }
@@ -86,6 +90,15 @@ export class IngestConsumer extends WorkerHost {
         })),
       );
 
+      // Chunks are written first with a null embedding, then filled. Writing
+      // both at once would mean a throttled embedding call loses the text too,
+      // and re-running would have nothing to replace.
+      step('embed');
+      const vectors = await this.embeddings.generateEmbeddings(chunks, 'search_document');
+      for (const [index, vector] of vectors.entries()) {
+        await this.vectorStore.setEmbedding(documentId, index, vector);
+      }
+
       const metadata: Prisma.InputJsonValue = {
         parties: analysis.parties,
         date: analysis.date,
@@ -111,8 +124,7 @@ export class IngestConsumer extends WorkerHost {
       });
 
       step('link-entities');
-      const { linked, withOffset } = await linkDocumentEntities(
-        this.prisma,
+      const { linked, withOffset } = await this.graph.upsertDocumentEntities(
         documentId,
         extracted.text,
         analysis.entities.map((entity) => ({ type: entity.type, value: entity.text })),

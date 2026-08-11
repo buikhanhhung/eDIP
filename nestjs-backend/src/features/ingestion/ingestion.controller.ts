@@ -8,6 +8,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Audit } from '@common/decorators/audit.decorator';
 import { CurrentUser, RequirePermission, type AuthUser } from '@common/rbac/rbac.decorators';
 import { IngestionService, type UploadedFile as MultipartFile } from './ingestion.service';
 
@@ -18,6 +19,7 @@ const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 export class IngestionController {
   constructor(private readonly ingestion: IngestionService) {}
 
+  @Audit('document.upload')
   @RequirePermission('upload')
   @HttpCode(HttpStatus.ACCEPTED)
   @Post()

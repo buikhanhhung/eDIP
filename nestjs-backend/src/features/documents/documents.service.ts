@@ -1,8 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { downloadMimeFor } from '@infrastructure/storage/allowlist';
 import { LocalStorageService } from '@infrastructure/storage/local-storage.service';
 import { PrismaService } from '@shared/database/prisma.service';
+import { GRAPH_STORE } from '@features/graph/graph.di-token';
+import type { IGraphStore } from '@features/graph/graph.port';
+
+export interface MetadataPatch {
+  title?: string;
+  documentType?: string;
+  parties?: string[];
+  date?: string | null;
+  amount?: string | null;
+  keywords?: string[];
+}
 
 export interface ListDocumentsQuery {
   q?: string;
@@ -32,9 +43,12 @@ const LIST_SELECT = {
 
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: LocalStorageService,
+    @Inject(GRAPH_STORE) private readonly graph: IGraphStore,
   ) {}
 
   async list(query: ListDocumentsQuery) {
@@ -132,6 +146,81 @@ export class DocumentsService {
       filename: doc.filename,
       mimeType: downloadMimeFor(doc.filename),
     };
+  }
+
+  /**
+   * Corrects what the model got wrong, with attribution.
+   *
+   * Editing `parties` re-derives the company links this document contributes to
+   * the graph: a person who fixes the AI must see the graph follow them, not
+   * the AI. Only company links are replaced — wiping every link would delete
+   * people, departments and projects the editor never touched.
+   *
+   * `typeConfidence` becomes 1 when a human sets the type. A person is not 87%
+   * sure.
+   */
+  async updateMetadata(id: string, patch: MetadataPatch, actorId: string) {
+    const existing = await this.prisma.document.findUnique({
+      where: { id },
+      select: { metadata: true, textContent: true },
+    });
+    if (!existing) throw new NotFoundException(`Document ${id} not found`);
+
+    const current = (existing.metadata ?? {}) as Record<string, unknown>;
+    const metadata: Prisma.InputJsonValue = {
+      ...current,
+      ...(patch.parties !== undefined ? { parties: patch.parties } : {}),
+      ...(patch.date !== undefined ? { date: patch.date } : {}),
+      ...(patch.amount !== undefined ? { amount: patch.amount } : {}),
+      ...(patch.keywords !== undefined ? { keywords: patch.keywords } : {}),
+    };
+
+    const updated = await this.prisma.document.update({
+      where: { id },
+      data: {
+        ...(patch.title !== undefined ? { title: patch.title } : {}),
+        ...(patch.documentType !== undefined
+          ? { documentType: patch.documentType, typeConfidence: 1 }
+          : {}),
+        metadata,
+        metadataEditedById: actorId,
+        metadataEditedAt: new Date(),
+      },
+      select: { id: true, title: true, documentType: true, metadata: true, metadataEditedAt: true },
+    });
+
+    if (patch.parties !== undefined) {
+      await this.graph.deleteByDocument(id, ['company']);
+      await this.graph.upsertDocumentEntities(
+        id,
+        existing.textContent ?? '',
+        patch.parties.map((party) => ({ type: 'company', value: party })),
+      );
+    }
+
+    return updated;
+  }
+
+  /**
+   * Database first, disk second.
+   *
+   * Reversed, a failed delete leaves a row pointing at a file that no longer
+   * exists and every later read throws. This way the worst case is an orphaned
+   * file, which nothing reads.
+   */
+  async remove(id: string): Promise<{ id: string }> {
+    const doc = await this.prisma.document.findUnique({
+      where: { id },
+      select: { storagePath: true },
+    });
+    if (!doc) throw new NotFoundException(`Document ${id} not found`);
+
+    // embedding_chunks and DocumentEntity both cascade.
+    await this.prisma.document.delete({ where: { id } });
+    await this.storage.remove(doc.storagePath);
+
+    this.logger.log(`deleted document ${id}`);
+    return { id };
   }
 
   /**

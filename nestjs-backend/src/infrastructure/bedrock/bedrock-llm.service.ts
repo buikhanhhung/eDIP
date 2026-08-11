@@ -43,6 +43,30 @@ export class BedrockLlmService {
     this.modelId = this.config.get('BEDROCK_LLM_MODEL_ID', { infer: true });
   }
 
+  /** Plain completion, for answers meant to be read rather than parsed. */
+  async invokeText(messages: ChatMessage[], maxTokens = DEFAULT_MAX_TOKENS): Promise<string> {
+    assertBedrockConfigured(this.config, 'Answering a question');
+
+    const response = await this.client.send(
+      new ConverseCommand({
+        modelId: this.modelId,
+        messages: messages
+          .filter((m) => m.role !== 'system')
+          .map((m) => ({
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: [{ text: m.content }],
+          })),
+        system: messages.filter((m) => m.role === 'system').map((m) => ({ text: m.content })),
+        inferenceConfig: { maxTokens, temperature: DEFAULT_TEMPERATURE },
+      }),
+    );
+
+    return (response.output?.message?.content ?? [])
+      .map((block) => block.text ?? '')
+      .join('\n')
+      .trim();
+  }
+
   async invokeWithToolUse<T>(tool: BedrockToolSpec, messages: ChatMessage[]): Promise<T> {
     assertBedrockConfigured(this.config, 'Document analysis');
 

@@ -1,7 +1,25 @@
-import { Controller, Get, Header, Param, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { RequirePermission } from '@common/rbac/rbac.decorators';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+import { Audit } from '@common/decorators/audit.decorator';
+import { CurrentUser, RequirePermission, type AuthUser } from '@common/rbac/rbac.decorators';
+import { DOCUMENT_TYPES } from '@features/ingestion/schemas/analysis.schema';
 import { DocumentsService, type ListDocumentsQuery } from './documents.service';
+
+/** Every field optional: the panel sends only what the editor changed. */
+const metadataPatchSchema = z
+  .object({
+    title: z.string().min(1).max(500),
+    documentType: z.enum(DOCUMENT_TYPES),
+    parties: z.array(z.string().min(1)),
+    date: z.string().nullable(),
+    amount: z.string().nullable(),
+    keywords: z.array(z.string().min(1)),
+  })
+  .partial();
+
+class MetadataPatchDto extends createZodDto(metadataPatchSchema) {}
 
 @Controller()
 export class DocumentsController {
@@ -17,10 +35,29 @@ export class DocumentsController {
     });
   }
 
+  @Audit('document.view')
   @RequirePermission('view')
   @Get('documents/:id')
   findOne(@Param('id') id: string) {
     return this.documents.findOne(id);
+  }
+
+  @Audit('document.edit-metadata')
+  @RequirePermission('edit-metadata')
+  @Patch('documents/:id/metadata')
+  updateMetadata(
+    @Param('id') id: string,
+    @Body() body: MetadataPatchDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.documents.updateMetadata(id, body, user.id);
+  }
+
+  @Audit('document.delete')
+  @RequirePermission('delete')
+  @Delete('documents/:id')
+  remove(@Param('id') id: string) {
+    return this.documents.remove(id);
   }
 
   /** Polled by the upload page while a job runs. */
@@ -30,6 +67,7 @@ export class DocumentsController {
     return this.documents.status(id);
   }
 
+  @Audit('document.download')
   @RequirePermission('download')
   @Header('X-Content-Type-Options', 'nosniff')
   @Get('documents/:id/download')

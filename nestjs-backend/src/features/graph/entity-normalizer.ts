@@ -1,3 +1,5 @@
+import { foldForMatching } from '@common/text/fold-accents';
+
 /**
  * The whole entity-dedup mechanism.
  *
@@ -14,10 +16,9 @@ const LEGAL_SUFFIXES =
   /\b(ltd|limited|jsc|joint stock company|co|corp|corporation|inc|company|cong ty|tnhh|cp|pte|llc|gmbh)\b/g;
 
 export function normalizeEntityName(raw: string): string {
-  return raw
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
+  // Shared with search so both sides fold identically. Plain NFD is not enough:
+  // `đ` survives it, which would keep `Đông` and `dong` as separate nodes.
+  return foldForMatching(raw)
     .replace(/[.,;:'"()]/g, ' ')
     .replace(LEGAL_SUFFIXES, ' ')
     .replace(/\s+/g, ' ')

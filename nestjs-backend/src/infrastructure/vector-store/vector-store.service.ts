@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { buildOrTsQuery } from '@common/text/ts-query';
 import { PrismaService } from '@shared/database/prisma.service';
 
 export interface ChunkRecord {
@@ -8,6 +9,15 @@ export interface ChunkRecord {
   chunkIndex: number;
   /** Filled by the embedding step; null until then. */
   embedding?: number[] | null;
+}
+
+export interface ChunkHit {
+  /** String, not number: it is used to build citation ids. */
+  id: string;
+  documentId: string;
+  content: string;
+  /** Cosine similarity mapped into [0,1]; absent on lexical hits. */
+  similarity?: number;
 }
 
 /**
@@ -61,6 +71,69 @@ export class VectorStoreService {
       documentId,
       chunkIndex,
     );
+  }
+
+  /**
+   * Nearest chunks by cosine distance.
+   *
+   * `d.status = 'completed'` is not optional: the seed deliberately carries one
+   * failed document, and without the filter a half-processed row competes for
+   * rank 1 in every query.
+   *
+   * There is no ivfflat index by design. At thirteen vectors, `lists = 100`
+   * scatters them across a hundred lists while the default single probe reads
+   * one — so the index would return near-random results, slower to be wrong.
+   */
+  async searchByEmbedding(embedding: number[], topK: number): Promise<ChunkHit[]> {
+    const rows = await this.prisma.$queryRawUnsafe<
+      { id: number; documentId: string; content: string; similarity: number }[]
+    >(
+      `SELECT ec.id, ec.document_id AS "documentId",
+              COALESCE(ec.parent_content, ec.content) AS content,
+              (2 - (ec.embedding <=> $1::vector)) / 2 AS similarity
+       FROM embedding_chunks ec
+       JOIN "Document" d ON d.id = ec.document_id
+       WHERE ec.embedding IS NOT NULL AND d.status = 'completed'
+       ORDER BY ec.embedding <=> $1::vector
+       LIMIT $2`,
+      toVectorLiteral(embedding),
+      topK,
+    );
+    return rows.map((row) => ({ ...row, id: String(row.id) }));
+  }
+
+  /**
+   * Full-text match over chunk content, accent-folded on both sides so `hop
+   * dong` reaches `hợp đồng`. Chunk-level lexical retrieval exists for /ask;
+   * /search fuses at document level using the Document.search_tsv column.
+   */
+  async searchChunksLexical(query: string, topK: number): Promise<ChunkHit[]> {
+    // OR-joined, like the document lane: a single filler word must not empty
+    // the retrieval set for /ask.
+    const tsquery = buildOrTsQuery(query);
+    if (!tsquery) return [];
+
+    const rows = await this.prisma.$queryRawUnsafe<{ id: number; documentId: string; content: string }[]>(
+      `SELECT ec.id, ec.document_id AS "documentId",
+              COALESCE(ec.parent_content, ec.content) AS content
+       FROM embedding_chunks ec
+       JOIN "Document" d ON d.id = ec.document_id,
+            to_tsquery('simple', $1) q
+       WHERE d.status = 'completed'
+         AND to_tsvector('simple', immutable_unaccent(ec.content)) @@ q
+       ORDER BY ts_rank(to_tsvector('simple', immutable_unaccent(ec.content)), q) DESC
+       LIMIT $2`,
+      tsquery,
+      topK,
+    );
+    return rows.map((row) => ({ ...row, id: String(row.id) }));
+  }
+
+  async countEmbedded(): Promise<number> {
+    const rows = await this.prisma.$queryRawUnsafe<{ count: bigint }[]>(
+      `SELECT count(*)::bigint AS count FROM embedding_chunks WHERE embedding IS NOT NULL`,
+    );
+    return Number(rows[0]?.count ?? 0);
   }
 
   async countByDocument(documentId: string): Promise<number> {
