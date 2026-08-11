@@ -31,6 +31,22 @@ services:
             timeout: 5s
             retries: 5
 
+    # Graph store. Speaks the Redis protocol, so the healthcheck is a PING —
+    # port offset again to clear both the Redis above and ECVBot's own instance.
+    falkordb:
+        image: falkordb/falkordb:latest
+        container_name: edip-v2-falkordb-dev
+        ports:
+            - '6384:6379'
+        volumes:
+            - falkordata_dev:/data
+        healthcheck:
+            test: ['CMD', 'redis-cli', 'PING']
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
 volumes:
     pgdata_dev:
     redisdata_dev:
+    falkordata_dev:

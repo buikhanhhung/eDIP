@@ -15,6 +15,13 @@ export const envSchema = z.object({
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().int().positive().default(6383),
 
+  // Graph store. `postgres` keeps the graph in the main database; `falkordb`
+  // answers graph reads from Cypher while Postgres stays the source of truth.
+  GRAPH_STORE_DRIVER: z.enum(['postgres', 'falkordb']).default('postgres'),
+  FALKORDB_HOST: z.string().default('localhost'),
+  FALKORDB_PORT: z.coerce.number().int().positive().default(6384),
+  FALKORDB_GRAPH: z.string().default('edip'),
+
   AWS_REGION: z.string().default('ap-southeast-1'),
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
