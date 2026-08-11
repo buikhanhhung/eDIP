@@ -5,7 +5,9 @@ import { ProtectedRoute } from '@/components/protected-route';
 import { AuthProvider } from '@/features/auth/auth-context';
 import { LoginPage } from '@/features/auth/login-page';
 import { DashboardPage } from '@/features/dashboard/dashboard-page';
+import { DocumentDetailPage } from '@/features/documents/document-detail-page';
 import { LibraryPage } from '@/features/library/library-page';
+import { UploadPage } from '@/features/upload/upload-page';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -27,6 +29,8 @@ export default function App() {
             >
               <Route path="/" element={<DashboardPage />} />
               <Route path="/library" element={<LibraryPage />} />
+              <Route path="/upload" element={<UploadPage />} />
+              <Route path="/documents/:id" element={<DocumentDetailPage />} />
             </Route>
           </Routes>
         </AuthProvider>

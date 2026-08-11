@@ -5,7 +5,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Badge, statusVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
@@ -35,7 +35,12 @@ const columns = [
     header: 'Tệp',
     cell: (info) => (
       <div className="min-w-0">
-        <p className="truncate font-medium">{info.getValue()}</p>
+        <Link
+          to={`/documents/${info.row.original.id}`}
+          className="truncate font-medium hover:underline"
+        >
+          {info.getValue()}
+        </Link>
         {info.row.original.title && (
           <p className="truncate text-xs text-muted-foreground">{info.row.original.title}</p>
         )}

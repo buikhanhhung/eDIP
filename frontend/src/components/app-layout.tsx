@@ -4,9 +4,14 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/features/auth/auth-context';
 import { cn } from '@/lib/utils';
 
-const NAV_ITEMS = [
+/**
+ * `permission` hides a link the current role cannot use. Hiding is a courtesy,
+ * not a control — the API refuses the call regardless of what the nav shows.
+ */
+const NAV_ITEMS: { to: string; label: string; end: boolean; permission?: string }[] = [
   { to: '/', label: 'Tổng quan', end: true },
   { to: '/library', label: 'Thư viện', end: false },
+  { to: '/upload', label: 'Tải lên', end: false, permission: 'upload' },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -16,7 +21,8 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, can } = useAuth();
+  const navItems = NAV_ITEMS.filter((item) => !item.permission || can(item.permission));
 
   return (
     <div className="min-h-screen bg-muted/40">
@@ -25,7 +31,7 @@ export function AppLayout() {
           <span className="text-lg font-semibold tracking-tight">eDIP</span>
 
           <nav className="flex items-center gap-1">
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}

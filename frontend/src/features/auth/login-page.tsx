@@ -15,8 +15,10 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Where the visitor was headed before the route guard sent them here.
+  const from = (location.state as { from?: string } | null)?.from ?? '/';
+
   if (!loading && user) {
-    const from = (location.state as { from?: string } | null)?.from ?? '/';
     return <Navigate to={from} replace />;
   }
 
@@ -26,7 +28,7 @@ export function LoginPage() {
     setError(null);
     try {
       await login(email, password);
-      navigate('/', { replace: true });
+      navigate(from, { replace: true });
     } catch (err) {
       setError(extractErrorMessage(err, 'Đăng nhập thất bại. Thử lại.'));
     } finally {
