@@ -336,25 +336,51 @@ export class FalkorGraphStore implements IGraphStore {
     }
 
     if (includeRelations) {
-      const present = [...nodes.keys()];
+      /**
+       * Relations are not restricted to entities that survived `minShared`.
+       *
+       * That filter asks "does this entity tie documents together", which is a
+       * different question from "did the extractor find a stated relationship".
+       * Applying it to relations hid five of seven edges behind the default
+       * setting, so turning the feature on appeared to do nothing. Endpoints
+       * missing from the mention pass are added as nodes here.
+       */
       const relations = await this.falkor.query<{
         id: string;
         sourceEntityId: string;
         targetEntityId: string;
+        sourceLabel: string;
+        sourceType: string;
+        targetLabel: string;
+        targetType: string;
         type: string;
         evidence: string;
         documentId: string;
         confidence: number | null;
       }>(
         `MATCH (a:Entity)-[r:RELATES]->(b:Entity)
-         WHERE a.id IN $ids AND b.id IN $ids
+         MATCH (d:Document {id: r.document_id, status: 'completed'})
+         WHERE a.type IN $types AND b.type IN $types
          RETURN r.id AS id, a.id AS sourceEntityId, b.id AS targetEntityId,
+                a.entity_name AS sourceLabel, a.type AS sourceType,
+                b.entity_name AS targetLabel, b.type AS targetType,
                 r.type AS type, r.evidence AS evidence,
                 r.document_id AS documentId, r.confidence AS confidence`,
-        { ids: present },
+        { types: allowed },
       );
 
       for (const relation of relations) {
+        for (const end of [
+          { id: relation.sourceEntityId, label: relation.sourceLabel, type: relation.sourceType },
+          { id: relation.targetEntityId, label: relation.targetLabel, type: relation.targetType },
+        ]) {
+          if (!nodes.has(end.id)) {
+            nodes.set(end.id, {
+              data: { id: end.id, label: end.label, kind: 'entity', type: end.type },
+            });
+          }
+        }
+
         edges.set(relation.id, {
           data: {
             id: relation.id,

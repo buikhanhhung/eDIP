@@ -44,4 +44,31 @@ describe('fuseRanks', () => {
     const second = fuseRanks([['b', 'a']]);
     expect(first).toEqual(second);
   });
+
+  it('breaks an exact tie on the leading lane, not on the id', () => {
+    // The real case: the semantic lane leads with the MSA, the keyword lane
+    // leads with a different contract, the scores land identical. Comparing
+    // ids would hand the demo query's top result to whichever UUID sorts
+    // lower.
+    const msa = 'zzz-msa-saigon-retail';
+    const other = 'aaa-hop-dong-hanoi';
+
+    const fused = fuseRanks([
+      [msa, other],
+      [other, msa],
+    ]);
+
+    expect(fused[0].score).toBeCloseTo(fused[1].score, 10);
+    expect(fused[0].id).toBe(msa);
+  });
+
+  it('puts a document missing from the leading lane last among equals', () => {
+    const fused = fuseRanks([
+      ['a'],
+      ['b', 'a'],
+    ]);
+    const onlyKeyword = fused.find((entry) => entry.id === 'b')!;
+    const both = fused.find((entry) => entry.id === 'a')!;
+    expect(both.score).toBeGreaterThan(onlyKeyword.score);
+  });
 });

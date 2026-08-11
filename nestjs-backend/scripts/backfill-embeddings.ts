@@ -1,7 +1,8 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
-import { BedrockEmbeddingService } from '../src/infrastructure/bedrock/bedrock-embedding.service';
+import { EMBEDDING_SERVICE } from '../src/infrastructure/ai/ai.di-token';
+import type { IEmbeddingService } from '../src/infrastructure/ai/ai.port';
 import { CHUNKING_STRATEGY, splitText } from '../src/infrastructure/chunking/text-splitter';
 import { VectorStoreService } from '../src/infrastructure/vector-store/vector-store.service';
 import { PrismaService } from '../src/shared/database/prisma.service';
@@ -23,7 +24,10 @@ async function main() {
   });
 
   const prisma = app.get(PrismaService, { strict: false });
-  const embeddings = app.get(BedrockEmbeddingService, { strict: false });
+  // Through the capability token, so the script embeds with whichever
+  // provider AI_PROVIDER names — asking for the Bedrock class by name is how
+  // this script demanded AWS credentials while the app was running on Gemini.
+  const embeddings = app.get<IEmbeddingService>(EMBEDDING_SERVICE, { strict: false });
   const vectorStore = app.get(VectorStoreService, { strict: false });
 
   const documents = await prisma.document.findMany({
