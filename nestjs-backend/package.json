@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1107.0",
+    "@google/genai": "^2.16.0",
     "@napi-rs/canvas": "^1.0.5",
     "@nestjs/bullmq": "^11.0.5",
     "@nestjs/common": "^11.0.1",

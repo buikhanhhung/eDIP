@@ -24,7 +24,7 @@ export const envSchema = z.object({
 
   // Which provider backs the three model capabilities. Switching is a restart,
   // not a rebuild — see infrastructure/ai/ai.module.ts.
-  AI_PROVIDER: z.enum(['bedrock', 'openai']).default('bedrock'),
+  AI_PROVIDER: z.enum(['bedrock', 'openai', 'gemini']).default('bedrock'),
 
   OPENAI_API_KEY: z.string().optional(),
   /** Set only for an Azure or gateway endpoint; empty means api.openai.com. */
@@ -37,6 +37,17 @@ export const envSchema = z.object({
    * model without that parameter means migrating every stored vector.
    */
   OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-large'),
+
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_LLM_MODEL: z.string().default('gemini-2.5-flash'),
+  GEMINI_VISION_MODEL: z.string().default('gemini-2.5-flash'),
+  /**
+   * Must support `outputDimensionality`, for the same reason OpenAI must
+   * support `dimensions`: the stored vectors are 1024 wide. Gemini's
+   * embeddings are Matryoshka, so a shortened vector needs re-normalising —
+   * the service does that.
+   */
+  GEMINI_EMBEDDING_MODEL: z.string().default('gemini-embedding-001'),
 
   AWS_REGION: z.string().default('ap-southeast-1'),
   AWS_ACCESS_KEY_ID: z.string().optional(),
