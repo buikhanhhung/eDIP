@@ -200,6 +200,53 @@ Chi phí: **2 lời gọi LLM mỗi chunk**, cộng một lượt embedding tên
 - [ ] Trích quan hệ thật từ tài liệu — **chặn: cần credential**. Chưa có một dòng `EntityRelation` nào được sinh ra bởi model
 - [ ] Ngưỡng `DEFAULT_DEDUP_THRESHOLD = 0.92` — **đặt theo phỏng đoán, chưa hiệu chỉnh trên dữ liệu thật**. Phải đo lại khi có credential
 
+## Bổ sung 11/08 (2) — FalkorDB làm kho graph
+
+**Quyết định của người dùng:** theo ECVBot nghĩa là dùng luôn FalkorDB, không chỉ cơ chế trích.
+
+Điều này **rút ngắn "việc ngày 2"** ghi ở §Overview: adapter FalkorDB đã có, chọn bằng `GRAPH_STORE_DRIVER`.
+
+### Vì sao là hai kho, không phải thay hẳn
+
+Postgres vẫn là **nguồn sự thật**. Hai tính năng ngoài graph phụ thuộc nó:
+- highlight đọc `charStart`/`charEnd` từ `DocumentEntity`
+- xoá tài liệu dựa vào cascade khoá ngoại
+
+Đưa FalkorDB lên làm chủ nghĩa là viết lại cả hai và tự tay giữ toàn vẹn tham chiếu xuyên hai kho. **ECVBot cũng chia đúng như vậy**: Postgres giữ bản ghi, FalkorDB giữ graph.
+
+```
+ghi  →  Postgres (bắt buộc thành công)  →  mirror sang FalkorDB (lỗi thì log, không ném)
+đọc  →  Cypher
+sửa lệch → pnpm graph:sync (drop rồi dựng lại toàn bộ)
+```
+
+Mirror lỗi mà ném ngược ra sẽ nói dối người gọi: thao tác đã thành công ở kho sở hữu nó rồi.
+
+### Đã kiểm chứng thật — **không cần credential**
+
+| Kiểm | Kết quả |
+|---|---|
+| Container `falkordb/falkordb` `:6384` | up, healthy |
+| `pnpm graph:sync` | 33 entity + 10 document = **43 node**, 59 cạnh mention |
+| `/graph` qua **Postgres** | minShared 1/2/3 → 9/18/44 · 9/12/38 · 9/8/30 |
+| `/graph` qua **FalkorDB** | **9/18/44 · 9/12/38 · 9/8/30 — khớp chính xác** |
+| id cạnh duy nhất | đúng ở cả 3 mức, cả 2 driver |
+| `/graph/entities/:id/documents` | 9 tài liệu cho `Ecloudvalley Vietnam Ltd`, đúng như Postgres |
+| Trình duyệt | canvas render 21 nút · 38 liên kết từ FalkorDB |
+| Test | 79/79 pass |
+
+Đây là lần đầu một phần "theo cách ECVBot" được chứng minh bằng dữ liệu thật thay vì chỉ biên dịch được.
+
+### Một lỗi thật lộ ra khi chạy
+
+`pnpm graph:sync` chết ngay lần đầu: Nest báo mọi tham số constructor `undefined`. Nguyên nhân là **`tsx` (esbuild) không phát `design:paramtypes`**, nên container DI không dựng được — trong khi bản biên dịch `node dist/main.js` chạy tốt.
+
+`scripts/backfill-embeddings.ts` dính **đúng lỗi này** và chưa ai phát hiện, vì nó cần credential nên chưa từng được chạy. Cả hai script đã chuyển sang `ts-node -r tsconfig-paths/register`.
+
+### Còn thiếu so với ECVBot
+
+Chưa có vector index và fulltext index trên graph. ECVBot cần vì nó **truy hồi qua graph**; ở đây truy hồi vẫn chạy trên pgvector, nên hai index đó sẽ là thứ phải bảo trì mà không có ai đọc. Thêm khi nào `/ask` thực sự đi qua graph.
+
 ## Deviation Log (11/08)
 
 | Điểm | Kế hoạch | Thực tế | Lý do |
