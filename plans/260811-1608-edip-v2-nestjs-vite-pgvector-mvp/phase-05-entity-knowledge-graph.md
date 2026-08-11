@@ -200,7 +200,42 @@ Chi phí: **2 lời gọi LLM mỗi chunk**, cộng một lượt embedding tên
 - [ ] Trích quan hệ thật từ tài liệu — **chặn: cần credential**. Chưa có một dòng `EntityRelation` nào được sinh ra bởi model
 - [ ] Ngưỡng `DEFAULT_DEDUP_THRESHOLD = 0.92` — **đặt theo phỏng đoán, chưa hiệu chỉnh trên dữ liệu thật**. Phải đo lại khi có credential
 
-## Bổ sung 11/08 (2) — FalkorDB làm kho graph
+## Sửa 12/08 — entity chuyển hẳn vào FalkorDB, bỏ bảng Postgres
+
+**Người dùng chỉ ra tôi khẳng định sai.** Tôi viết "ECVBot cũng chia đôi: Postgres giữ bản ghi, FalkorDB giữ graph" và lấy đó làm căn cứ cho thiết kế mirror. Kiểm lại bằng chính mã nguồn:
+
+- Prisma schema của ECVBot **không có bảng nào** cho entity/relation
+- `entity-extraction.service.ts` chỉ dùng Prisma để **đọc** `knowledgeBase`, `kbChunk`, `kbUnit`, rồi ghi entity và `[:RELATES]` **thẳng vào FalkorDB**
+- Chỉ **bộ khung tài liệu** (`:Document`, `:Chunk`) là bản chiếu từ Postgres, do `LexicalGraphWriterService` ghi
+
+Hai lý do tôi dùng để giữ mirror cũng yếu hơn tôi trình bày: offset hoàn toàn có thể là **thuộc tính của cạnh** `MENTIONS`, và cascade chỉ là một câu `DELETE` tường minh. Cả hai là lựa chọn, không phải ràng buộc.
+
+### Đã đổi
+
+- **Xoá 3 bảng** `Entity`, `DocumentEntity`, `EntityRelation` (migration `20260812000000_graph_moves_to_falkordb`)
+- Xoá `postgres-graph.store.ts`, `entity-linker.ts`, script `graph:sync`, cờ `GRAPH_STORE_DRIVER`
+- `FalkorGraphStore` tự đứng một mình; offset thành thuộc tính cạnh `MENTIONS {char_start, char_end}`
+- **Thứ tự xoá tài liệu: graph → row → file.** Node sống sót qua row là một tài liệu trên canvas không mở được; row sống sót qua node chỉ là một lệnh xoá lặp lại được
+- `seed.ts` ghi entity thẳng vào FalkorDB → **seed từ nay cần FalkorDB chạy**
+- Vector index trên `Entity.name_embedding` **giờ mới có người đọc**: dedup hỏi láng giềng gần nhất cho mọi tên trích được
+- `GET /documents/:id` lấy entity từ graph; graph lỗi thì trả danh sách rỗng chứ không hỏng cả request — text và metadata vẫn đáng xem
+
+### Kiểm chứng sau khi đổi
+
+| Kiểm | Kết quả |
+|---|---|
+| Bảng còn lại trong Postgres | `AuditLog, Document, User, _prisma_migrations, embedding_chunks` |
+| `prisma db seed` | 33 entity + 59 mention (55 có offset) **trong FalkorDB** |
+| `/graph` minShared 1/2/3 | 9/18/44 · 9/12/38 · 9/8/30 — **y hệt bản Postgres cũ** |
+| `GET /documents/:id` | 7 entity, cả 7 có offset |
+| `DELETE /documents/:id` | row 10→9, node biến khỏi graph, file trên đĩa mất |
+| Test / build | 79/79 pass, BE + FE build sạch |
+
+### Cái mất, đã biết trước
+
+Highlight và trang chi tiết giờ **phụ thuộc FalkorDB**; trước đó chúng chạy được kể cả khi Falkor sập. Và phép kiểm "hai driver cho cùng kết quả" không còn vì chỉ còn một driver — bảng số ở trên là lần đối chiếu cuối cùng giữa hai bản.
+
+## Bổ sung 11/08 (2) — FalkorDB làm kho graph *(đã bị thay bởi mục trên)*
 
 **Quyết định của người dùng:** theo ECVBot nghĩa là dùng luôn FalkorDB, không chỉ cơ chế trích.
 

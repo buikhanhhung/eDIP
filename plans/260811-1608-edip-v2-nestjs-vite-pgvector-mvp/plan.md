@@ -79,7 +79,7 @@ Cross-plan: không có plan nào khác trong `$ROOT/plans/`. Plan của `$V1` (`
 | Embedding dimension | **1024** | ✅ Cứng — đổi là phải migrate lại toàn bộ |
 | Embedding model | Cohere Embed Multilingual v3 (fallback Titan v2, cũng 1024d) | |
 | LLM | Claude qua Bedrock (vision + analyze + Q&A) | |
-| Graph store | Postgres **hoặc** FalkorDB, chọn bằng `GRAPH_STORE_DRIVER` | Postgres luôn là nguồn sự thật; FalkorDB là kho graph được mirror. Đã kiểm: hai driver trả **cùng** số node/cạnh |
+| Graph store | **FalkorDB, và chỉ FalkorDB** | Entity, mention, quan hệ không có bảng Postgres — đúng như ECVBot. `:Document` là bản chiếu từ row. Không khoá ngoại nào xuyên hai kho: xoá tài liệu phải xoá node tường minh |
 | Storage | Local disk volume | Không S3 hôm nay |
 | Queue | BullMQ + Redis, `attempts: 3` + backoff | Timebox 30 phút, quá thì `EventEmitter2` |
 | Layout | 2 thư mục rời, không workspace | |
