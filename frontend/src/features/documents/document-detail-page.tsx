@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { SectionIcon, SectionTitle } from '@/components/section-title';
 import { Card, CardContent } from '@/components/ui/card';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
+import { copyText } from '@/lib/clipboard';
 import { cn, formatDate } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { MetadataPanel, type DocumentMetadata } from './metadata-panel';
@@ -245,20 +246,12 @@ export function DocumentDetailPage() {
 /** How long the button holds its result before returning to "Copy". */
 const COPY_FEEDBACK_MS = 1500;
 
-/**
- * Copies the extracted text, and says what happened.
- *
- * The Clipboard API is refused often enough to plan for — an unfocused
- * document, a permission the browser never granted — so a failure falls back to
- * the older selection-based copy, and a failure of both says so. Swallowing it
- * leaves a button that visibly does nothing, which is the one outcome that
- * makes a reader press it again and again.
- */
+/** Copies the extracted text, and says what happened. */
 function CopyButton({ text }: { text: string }) {
   const [result, setResult] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   async function copy() {
-    setResult((await writeToClipboard(text)) ? 'copied' : 'failed');
+    setResult((await copyText(text)) ? 'copied' : 'failed');
     setTimeout(() => setResult('idle'), COPY_FEEDBACK_MS);
   }
 
@@ -274,37 +267,6 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-async function writeToClipboard(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return copyBySelection(text);
-  }
-}
-
-/**
- * The pre-Clipboard-API route: put the text in an off-screen field, select it,
- * and let the browser's own copy command take it. Deprecated, and still the
- * only thing that works when the Clipboard API is refused.
- */
-function copyBySelection(text: string): boolean {
-  const field = document.createElement('textarea');
-  field.value = text;
-  field.setAttribute('readonly', '');
-  field.style.position = 'fixed';
-  field.style.left = '-9999px';
-  document.body.appendChild(field);
-
-  try {
-    field.select();
-    return document.execCommand('copy');
-  } catch {
-    return false;
-  } finally {
-    field.remove();
-  }
-}
 
 /**
  * Says both what is missing and why nothing is wrong.

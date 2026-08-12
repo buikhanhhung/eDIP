@@ -7,6 +7,7 @@ import {
   Network,
   ScrollText,
   Search,
+  Sparkles,
   Upload,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
       { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
       { to: '/library', label: 'Library', icon: FileText },
       { to: '/search', label: 'Search', icon: Search, permission: 'search' },
+      { to: '/ask', label: 'Ask AI', icon: Sparkles, permission: 'search' },
       { to: '/graph', label: 'Graph', icon: Network },
     ],
   },

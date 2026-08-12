@@ -1,15 +1,14 @@
 import { useMutation } from '@tanstack/react-query';
-import { Sparkles } from 'lucide-react';
+import { Search as SearchIcon, Sparkles } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { FileTypeChip } from '@/components/file-type-chip';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
 import { typeLabel } from '@/features/documents/document-types';
 
 interface Snippet {
@@ -28,21 +27,12 @@ interface SearchHit {
   lanes: string[];
 }
 
-interface Citation {
-  documentId: string;
-  title: string | null;
-  filename: string;
-  chunkId: string;
-  snippet: string;
-}
-
 // Left in Vietnamese on purpose: they run against a Vietnamese corpus, and the
 // middle one is unaccented to show that a query without diacritics still finds
 // documents that have them.
 const SUGGESTIONS = ['hợp đồng với Saigon Retail', 'hop dong', 'chính sách lưu trữ dữ liệu'];
 
 export function SearchPage() {
-  const [mode, setMode] = useState<'search' | 'ask'>('search');
   const [query, setQuery] = useState('');
 
   const search = useMutation({
@@ -50,63 +40,34 @@ export function SearchPage() {
       (await apiClient.post<{ hits: SearchHit[]; degraded: boolean }>('/search', { q })).data,
   });
 
-  const ask = useMutation({
-    mutationFn: async (q: string) =>
-      (await apiClient.post<{ answer: string; citations: Citation[]; unsourced: boolean }>('/ask', {
-        q,
-      })).data,
-  });
-
-  const active = mode === 'search' ? search : ask;
-
   function submit(event: FormEvent) {
     event.preventDefault();
     const q = query.trim();
-    if (!q) return;
-    if (mode === 'search') search.mutate(q);
-    else ask.mutate(q);
+    if (q) search.mutate(q);
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        icon={Sparkles}
-        title="Search & Ask"
+        icon={SearchIcon}
+        title="Search"
         description="Hybrid search across meaning and keywords. Queries without Vietnamese diacritics still match documents that have them."
+        actions={
+          <Link to="/ask" className={buttonVariants({ variant: 'outline' })}>
+            <Sparkles className="size-4" />
+            Ask AI instead
+          </Link>
+        }
       />
-
-      {/* A segmented control sized to its two labels. Stretching it across the
-          page would read as a navigation bar rather than a choice of mode. */}
-      <div className="flex w-fit gap-1 rounded-lg border border-stroke-soft-200 bg-bg-weak-50 p-1">
-        {(['search', 'ask'] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setMode(value)}
-            className={cn(
-              'rounded-md px-6 py-1.5 text-sm font-medium transition-default',
-              mode === value
-                ? 'bg-bg-white-0 text-text-strong-950 shadow-soft'
-                : 'text-text-sub-600 hover:text-text-strong-950',
-            )}
-          >
-            {value === 'search' ? 'Search' : 'Ask AI'}
-          </button>
-        ))}
-      </div>
 
       <form className="flex gap-2" onSubmit={submit}>
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={
-            mode === 'search'
-              ? 'Enter a keyword or describe what you are looking for'
-              : 'Ask a question about the document collection'
-          }
+          placeholder="Enter a keyword or describe what you are looking for"
         />
-        <Button type="submit" disabled={active.isPending}>
-          {active.isPending ? 'Working…' : mode === 'search' ? 'Search' : 'Ask'}
+        <Button type="submit" disabled={search.isPending}>
+          {search.isPending ? 'Searching…' : 'Search'}
         </Button>
       </form>
 
@@ -118,8 +79,7 @@ export function SearchPage() {
             className="rounded-full border border-stroke-soft-200 bg-bg-white-0 px-3 py-1 text-xs text-text-sub-600 transition-default hover:border-primary-base hover:text-primary-base"
             onClick={() => {
               setQuery(suggestion);
-              if (mode === 'search') search.mutate(suggestion);
-              else ask.mutate(suggestion);
+              search.mutate(suggestion);
             }}
           >
             {suggestion}
@@ -127,21 +87,19 @@ export function SearchPage() {
         ))}
       </div>
 
-      {active.isError && (
+      {search.isError && (
         <p className="rounded-md bg-danger-light px-3 py-2 text-sm text-danger-base">
-          {extractErrorMessage(active.error, 'The query could not be run.')}
+          {extractErrorMessage(search.error, 'The query could not be run.')}
         </p>
       )}
 
-      {mode === 'search' && !search.data && !search.isPending && (
+      {!search.data && !search.isPending && (
         <p className="text-sm text-text-sub-600">
           Enter a query, or pick one of the suggestions above to get started.
         </p>
       )}
 
-      {mode === 'search' && search.data && <SearchResults data={search.data} />}
-
-      {mode === 'ask' && ask.data && <AskAnswer data={ask.data} />}
+      {search.data && <SearchResults data={search.data} />}
     </div>
   );
 }
@@ -197,49 +155,5 @@ function HighlightedSnippet({ snippet }: { snippet: Snippet }) {
       </mark>
       {snippet.text.slice(snippet.matchEnd)}
     </>
-  );
-}
-
-function AskAnswer({
-  data,
-}: {
-  data: { answer: string; citations: Citation[]; unsourced: boolean };
-}) {
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="whitespace-pre-wrap pt-6 text-sm leading-relaxed">
-          {data.answer}
-        </CardContent>
-      </Card>
-
-      {data.unsourced && (
-        <p className="rounded-md bg-warning-light px-3 py-2 text-sm text-warning-base">
-          This answer cites no source. Check it against the original documents before relying on
-          it.
-        </p>
-      )}
-
-      {data.citations.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-medium text-text-sub-600">
-            Sources ({data.citations.length})
-          </h2>
-          {data.citations.map((citation) => (
-            <Card key={`${citation.documentId}-${citation.chunkId}`}>
-              <CardContent className="space-y-1 pt-6">
-                <Link
-                  to={`/documents/${citation.documentId}`}
-                  className="text-sm font-medium hover:underline"
-                >
-                  {citation.title ?? citation.filename}
-                </Link>
-                <p className="text-sm text-text-sub-600">{citation.snippet}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }

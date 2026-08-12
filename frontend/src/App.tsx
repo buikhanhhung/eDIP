@@ -9,6 +9,7 @@ import { DashboardPage } from '@/features/dashboard/dashboard-page';
 import { DocumentDetailPage } from '@/features/documents/document-detail-page';
 import { GraphPage } from '@/features/graph/graph-page';
 import { LibraryPage } from '@/features/library/library-page';
+import { AskPage } from '@/features/ask/ask-page';
 import { SearchPage } from '@/features/search/search-page';
 import { SourcesPage } from '@/features/connectors/sources-page';
 import { UploadPage } from '@/features/upload/upload-page';
@@ -54,6 +55,14 @@ export default function App() {
                 element={
                   <ProtectedRoute permission="search">
                     <SearchPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/ask"
+                element={
+                  <ProtectedRoute permission="search">
+                    <AskPage />
                   </ProtectedRoute>
                 }
               />
