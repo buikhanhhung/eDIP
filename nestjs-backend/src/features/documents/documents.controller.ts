@@ -6,6 +6,8 @@ import { Audit } from '@common/decorators/audit.decorator';
 import { CurrentUser, RequirePermission, type AuthUser } from '@common/rbac/rbac.decorators';
 import { DOCUMENT_TYPES } from '@features/ingestion/schemas/analysis.schema';
 import { DocumentsService, type ListDocumentsQuery } from './documents.service';
+import { resolveRange } from './overview-range';
+import { OverviewStatsService } from './overview-stats.service';
 
 /** Every field optional: the panel sends only what the editor changed. */
 const metadataPatchSchema = z
@@ -23,7 +25,10 @@ class MetadataPatchDto extends createZodDto(metadataPatchSchema) {}
 
 @Controller()
 export class DocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    private readonly documents: DocumentsService,
+    private readonly overview: OverviewStatsService,
+  ) {}
 
   @RequirePermission('view')
   @Get('documents')
@@ -104,12 +109,16 @@ export class DocumentsController {
   }
 
   /**
-   * Carries the same counts the dashboard shows. Behind `view` rather than
-   * public: the type breakdown is a summary of the corpus.
+   * Everything the overview page draws, for one window of time.
+   *
+   * Behind `view` rather than public: the type breakdown is a summary of the
+   * corpus. The window defaults to the last 30 days ending today, so a caller
+   * that passes nothing still gets a well-defined range rather than "all time
+   * except the parts that were filtered".
    */
   @RequirePermission('view')
   @Get('stats')
-  stats() {
-    return this.documents.stats();
+  stats(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.overview.build(resolveRange(from, to));
   }
 }

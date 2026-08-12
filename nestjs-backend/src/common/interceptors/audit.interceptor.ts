@@ -38,6 +38,7 @@ export class AuditInterceptor implements NestInterceptor {
     const actorId = request.user?.id ?? null;
     const paramId = request.params?.id ?? null;
     const meta = this.extractMeta(request.body);
+    const startedAt = Date.now();
 
     return next.handle().pipe(
       tap((response: unknown) => {
@@ -49,7 +50,10 @@ export class AuditInterceptor implements NestInterceptor {
               action,
               targetType: targetId ? 'document' : null,
               targetId,
-              meta,
+              // How long the handler took. Recorded on every audited action,
+              // which is what lets the overview report a real answer time for
+              // search and ask rather than an estimate.
+              meta: { ...meta, durationMs: Date.now() - startedAt },
             },
           })
           .catch((error: unknown) => {
@@ -68,11 +72,11 @@ export class AuditInterceptor implements NestInterceptor {
   }
 
   /** Only the query text — never the document body, which can be megabytes. */
-  private extractMeta(body: unknown): { q: string } | undefined {
+  private extractMeta(body: unknown): { q: string } | Record<string, never> {
     if (body && typeof body === 'object' && 'q' in body) {
       const q = (body as { q: unknown }).q;
       if (typeof q === 'string') return { q: q.slice(0, MAX_META_LENGTH) };
     }
-    return undefined;
+    return {};
   }
 }

@@ -18,16 +18,47 @@ export interface DocumentListResponse {
   total: number;
 }
 
-export interface DocumentStats {
-  total: number;
-  totalBytes: number;
-  byStatus: Record<string, number>;
+/** A figure beside the same figure one window earlier. */
+export interface StatDelta {
+  value: number;
+  previous: number;
+  /** Null when the earlier window was empty — a rise from zero has no rate. */
+  changePct: number | null;
+}
+
+export interface OverviewStats {
+  range: { from: string; to: string; bucket: 'day' | 'month' };
+  tiles: {
+    total: StatDelta;
+    processed: StatDelta;
+    failed: StatDelta;
+    processing: StatDelta;
+    storageBytes: StatDelta;
+  };
   byType: Record<string, number>;
   /** How each document's text was obtained — native, vision, docx, and so on. */
+  byTextSource: Record<string, number>;
+  /** Which door each document came through — upload, google_drive. */
   bySource: Record<string, number>;
-  /** Only days that have documents; absent days are absent, not zeroed. */
-  daily: { date: string; uploaded: number; failed: number }[];
-  activity: { byAction: Record<string, number>; activeUsers: number };
+  /** Every bucket in the window, empty ones included. */
+  series: { date: string; uploaded: number; failed: number }[];
+  usage: {
+    byType: { type: string; uses: number }[];
+    documents: {
+      id: string;
+      filename: string;
+      title: string | null;
+      documentType: string | null;
+      uses: number;
+    }[];
+  };
+  ai: {
+    totalQueries: number;
+    searches: number;
+    questions: number;
+    /** Null until audited actions start carrying a measured duration. */
+    avgResponseMs: number | null;
+  };
 }
 
 /** Display labels for the document types the classifier produces. */

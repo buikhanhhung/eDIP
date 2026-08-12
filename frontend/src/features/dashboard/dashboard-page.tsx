@@ -1,30 +1,41 @@
 import { useQuery } from '@tanstack/react-query';
 import {
+  Activity,
   AlertCircle,
+  ArrowRight,
   CheckCircle2,
-  Database,
+  Clock,
   FileText,
+  FolderOpen,
   LayoutDashboard,
-  type LucideIcon,
+  MessageSquare,
+  Search,
+  Timer,
 } from 'lucide-react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AreaTrend } from '@/components/charts/area-trend';
 import { BarList } from '@/components/charts/bar-list';
 import { DonutChart, type Slice } from '@/components/charts/donut-chart';
+import { DateRangePicker, rangeFor, type DateRange } from '@/components/date-range-picker';
 import { PageHeader } from '@/components/page-header';
+import { StatTile } from '@/components/stat-tile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiClient } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
-import { typeLabel, type DocumentStats } from '@/features/documents/document-types';
+import { typeLabel, type OverviewStats } from '@/features/documents/document-types';
 
 /**
- * The categorical order is fixed and validated, not picked per render: colour
- * follows the document type, so a type disappearing never repaints the ones
- * that remain.
+ * Validated with the data-viz palette checker against a white surface: worst
+ * adjacent CVD ΔE 11.5, worst normal-vision ΔE 19.2. Three slots fall below 3:1
+ * contrast, which the legend's labels and values relieve.
+ *
+ * The order is fixed and colour follows the document type, so filtering the
+ * corpus never repaints the types that remain.
  */
-const TYPE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300'] as const;
+const TYPE_COLORS = ['#3b82f6', '#f97316', '#10b981', '#a855f7', '#ec4899', '#f59e0b'] as const;
 
 /** How the text was obtained, in words rather than column values. */
-const SOURCE_LABELS: Record<string, string> = {
+const TEXT_SOURCE_LABELS: Record<string, string> = {
   native: 'Read directly',
   pdf_text: 'PDF text layer',
   docx: 'Word document',
@@ -33,35 +44,53 @@ const SOURCE_LABELS: Record<string, string> = {
   vision: 'Vision (scan or image)',
 };
 
-const ACTION_LABELS: Record<string, string> = {
-  'document.upload': 'Uploads',
-  'document.import': 'Imports',
-  'document.view': 'Views',
-  'document.download': 'Downloads',
-  'document.export': 'Exports',
-  'document.edit-metadata': 'Metadata edits',
-  'document.delete': 'Deletes',
-  'search.query': 'Searches',
-  'ask.query': 'AI questions',
+/** Which door a document came through. */
+const SOURCE_LABELS: Record<string, string> = {
+  upload: 'Direct upload',
+  google_drive: 'Google Drive',
 };
 
-/** Below this a "trend" is one spike on an empty axis, which says nothing. */
-const MIN_DAYS_FOR_TREND = 3;
+const DEFAULT_RANGE_DAYS = 30;
 
 export function DashboardPage() {
+  const [range, setRange] = useState<DateRange>(() => rangeFor(DEFAULT_RANGE_DAYS));
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['stats'],
-    queryFn: async () => (await apiClient.get<DocumentStats>('/stats')).data,
+    // The window is part of the key, so changing it refetches rather than
+    // showing the previous window's figures under the new dates.
+    queryKey: ['overview', range.from, range.to],
+    queryFn: async () =>
+      (await apiClient.get<OverviewStats>('/stats', { params: range })).data,
   });
 
-  if (isLoading) return <p className="text-sm text-text-sub-600">Loading statistics…</p>;
-  if (isError || !data) {
-    return <p className="text-sm text-danger-base">Could not load the overview statistics.</p>;
-  }
+  const spanDays =
+    Math.round(
+      (Date.parse(`${range.to}T00:00:00Z`) - Date.parse(`${range.from}T00:00:00Z`)) / 86_400_000,
+    ) + 1;
+  const comparison = `vs previous ${spanDays} days`;
 
-  const completed = data.byStatus.completed ?? 0;
-  const failed = data.byStatus.failed ?? 0;
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader
+          icon={LayoutDashboard}
+          title="Overview"
+          description="Track document processing and platform usage."
+        />
+        <DateRangePicker value={range} onChange={setRange} />
+      </div>
 
+      {isLoading && <p className="text-sm text-text-sub-600">Loading statistics…</p>}
+      {(isError || (!isLoading && !data)) && (
+        <p className="text-sm text-danger-base">Could not load the overview statistics.</p>
+      )}
+
+      {data && <Overview data={data} comparison={comparison} />}
+    </div>
+  );
+}
+
+function Overview({ data, comparison }: { data: OverviewStats; comparison: string }) {
   const typeSlices: Slice[] = Object.entries(data.byType)
     .sort((a, b) => b[1] - a[1])
     .slice(0, TYPE_COLORS.length)
@@ -72,84 +101,85 @@ export function DashboardPage() {
       color: TYPE_COLORS[index],
     }));
 
-  const sourceRows = Object.entries(data.bySource ?? {})
-    .sort((a, b) => b[1] - a[1])
-    .map(([source, count]) => ({
-      key: source,
-      label: SOURCE_LABELS[source] ?? source,
-      value: count,
-    }));
+  const documentTotal = Object.values(data.byType).reduce((sum, count) => sum + count, 0);
 
-  const activityRows = Object.entries(data.activity?.byAction ?? {})
-    .sort((a, b) => b[1] - a[1])
-    .map(([action, count]) => ({
-      key: action,
-      label: ACTION_LABELS[action] ?? action,
-      value: count,
-    }));
-
-  const days = data.daily ?? [];
-  const showTrend = days.length >= MIN_DAYS_FOR_TREND;
+  const textSourceRows = labelledRows(data.byTextSource, TEXT_SOURCE_LABELS);
+  const sourceRows = labelledRows(data.bySource, SOURCE_LABELS);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        icon={LayoutDashboard}
-        title="Overview"
-        description="Everything ingested into the platform so far."
-      />
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={FileText} label="Total documents" value={data.total} tone="primary" />
-        <StatCard icon={CheckCircle2} label="Processed" value={completed} tone="success" />
-        <StatCard icon={AlertCircle} label="Failed" value={failed} tone="danger" />
-        <StatCard
-          icon={Database}
+    <>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <StatTile
+          icon={FileText}
+          tone="blue"
+          label="Total documents"
+          value={String(data.tiles.total.value)}
+          delta={data.tiles.total}
+          comparison={comparison}
+        />
+        <StatTile
+          icon={CheckCircle2}
+          tone="green"
+          label="Processed"
+          value={String(data.tiles.processed.value)}
+          delta={data.tiles.processed}
+          comparison={comparison}
+        />
+        <StatTile
+          icon={AlertCircle}
+          tone="red"
+          label="Failed"
+          value={String(data.tiles.failed.value)}
+          delta={data.tiles.failed}
+          inverse
+          comparison={comparison}
+        />
+        <StatTile
+          icon={Clock}
+          tone="violet"
+          label="Processing"
+          value={String(data.tiles.processing.value)}
+          delta={data.tiles.processing}
+          comparison={comparison}
+        />
+        <StatTile
+          icon={FolderOpen}
+          tone="amber"
           label="Storage used"
-          value={formatBytes(data.totalBytes ?? 0)}
-          tone="neutral"
+          value={formatBytes(data.tiles.storageBytes.value)}
+          delta={data.tiles.storageBytes}
+          comparison={comparison}
         />
       </div>
 
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>Documents uploaded over time</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AreaTrend
+            points={data.series.map((point) => ({ date: point.date, value: point.uploaded }))}
+            bucket={data.range.bucket}
+            unit={data.series.length > 0 ? 'uploaded' : ''}
+          />
+        </CardContent>
+      </Card>
+
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>By document type</CardTitle>
+          <CardHeader className="flex-row items-baseline justify-between pb-2">
+            <CardTitle>Documents by type</CardTitle>
+            <CardLink to="/library">View all types</CardLink>
           </CardHeader>
           <CardContent>
             {typeSlices.length > 0 ? (
-              <DonutChart slices={typeSlices} total={data.total} totalLabel="documents" />
+              // "classified", not "documents": a file that failed before the
+              // classifier ran has no type, so this total can sit below the
+              // one in the tile above without either being wrong.
+              <DonutChart slices={typeSlices} total={documentTotal} totalLabel="classified" />
             ) : (
-              <p className="text-sm text-text-sub-600">No documents have been classified yet.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>How the text was read</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <BarList rows={sourceRows} empty="Nothing has been processed yet." />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>Ingest over time</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {showTrend ? (
-              <IngestTrend days={days} />
-            ) : (
-              // A single day is a point, not a trend. Saying so beats drawing
-              // one spike against thirty empty days.
               <p className="text-sm text-text-sub-600">
-                {days.length === 0
-                  ? 'No documents in the last 30 days.'
-                  : `All ${days.reduce((sum, day) => sum + day.uploaded, 0)} documents were ingested on ${formatDay(days[0].date)}. A trend appears once there are at least ${MIN_DAYS_FOR_TREND} days of activity.`}
+                No documents were classified in this window.
               </p>
             )}
           </CardContent>
@@ -157,81 +187,181 @@ export function DashboardPage() {
 
         <Card>
           <CardHeader className="flex-row items-baseline justify-between pb-2">
-            <CardTitle>Activity</CardTitle>
-            <Link to="/audit" className="text-sm font-normal text-primary-base hover:underline">
-              Activity log
-            </Link>
+            <CardTitle>Top data sources</CardTitle>
+            <CardLink to="/sources">Manage sources</CardLink>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <BarList rows={activityRows} empty="Nothing has happened yet." />
-            {data.activity && (
-              <p className="border-t border-stroke-soft-200 pt-3 text-sm text-text-sub-600">
-                {data.activity.activeUsers} account
-                {data.activity.activeUsers === 1 ? '' : 's'} active
-              </p>
-            )}
+          <CardContent>
+            <BarList
+              rows={sourceRows}
+              showPercent
+              empty="Nothing was ingested in this window."
+            />
+            {/* Only connected providers appear. A row of zeros for a connector
+                nobody set up would read as a service that is failing. */}
+            <p className="mt-4 border-t border-stroke-soft-200 pt-3 text-xs text-text-soft-400">
+              Providers appear once they have contributed a document.
+            </p>
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
-}
 
-/** Bars over days: one series, so no legend — the card title names it. */
-function IngestTrend({ days }: { days: { date: string; uploaded: number; failed: number }[] }) {
-  const max = Math.max(...days.map((day) => day.uploaded), 1);
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <MostUsedCard usage={data.usage} />
 
-  return (
-    <div className="flex h-40 items-end gap-1.5">
-      {days.map((day) => (
-        <div key={day.date} className="group flex min-w-0 flex-1 flex-col items-center gap-1.5">
-          <span
-            className="w-full rounded-t bg-primary-base transition-default group-hover:bg-primary-dark"
-            style={{ height: `${Math.max((day.uploaded / max) * 120, 3)}px` }}
-            title={`${formatDay(day.date)}: ${day.uploaded} uploaded, ${day.failed} failed`}
-          />
-          <span className="w-full truncate text-center text-[10px] tabular-nums text-text-soft-400">
-            {day.date.slice(8)}
-          </span>
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle>How the text was read</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BarList rows={textSourceRows} empty="Nothing has been processed yet." />
+            </CardContent>
+          </Card>
+
+          <QueryInsightsCard ai={data.ai} />
         </div>
-      ))}
-    </div>
+      </div>
+    </>
   );
 }
 
-const TONES = {
-  primary: 'bg-primary-lighter text-primary-base',
-  success: 'bg-success-light text-success-base',
-  danger: 'bg-danger-light text-danger-base',
-  neutral: 'bg-bg-weak-50 text-text-sub-600',
-} as const;
+/**
+ * Which types people actually open, and the documents behind the winner.
+ *
+ * Read off the audit trail, not the library: a type can dominate the corpus and
+ * still be the one nobody opens. Selecting a type filters the leaderboard
+ * beneath it, which is what makes the headline figure checkable rather than
+ * something the reader has to take on trust.
+ */
+function MostUsedCard({ usage }: { usage: OverviewStats['usage'] }) {
+  const [selected, setSelected] = useState<string | null>(null);
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: number | string;
-  tone: keyof typeof TONES;
-}) {
+  const rows = usage.byType.map((row) => ({
+    key: row.type,
+    label: typeLabel(row.type === 'unknown' ? null : row.type),
+    value: row.uses,
+  }));
+
+  const active = selected ?? usage.byType[0]?.type ?? null;
+  const documents = usage.documents.filter(
+    (document) => (document.documentType ?? 'unknown') === active,
+  );
+
   return (
     <Card>
-      <CardContent className="flex items-center gap-4 pt-6">
-        <span className={cn('grid size-12 shrink-0 place-items-center rounded-full', TONES[tone])}>
-          <Icon className="size-5" />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm text-text-sub-600">{label}</p>
-          {/* Proportional figures: tabular ones make a short number look loose
-              at this size, and nothing here has to align in a column. */}
-          <p className="text-3xl font-semibold text-text-strong-950">{value}</p>
-        </div>
+      <CardHeader className="pb-2">
+        <CardTitle>Most-used document types</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {rows.length === 0 ? (
+          <p className="text-sm text-text-sub-600">
+            Nothing was opened or downloaded in this window.
+          </p>
+        ) : (
+          <>
+            <BarList
+              rows={rows}
+              showPercent
+              onSelect={(key) => setSelected(key)}
+              selectedKey={active}
+            />
+
+            <div className="border-t border-stroke-soft-200 pt-3">
+              <p className="mb-2 text-subheading-xs uppercase text-text-soft-400">
+                Most used · {typeLabel(active === 'unknown' ? null : active)}
+              </p>
+              {documents.length === 0 ? (
+                <p className="text-sm text-text-sub-600">
+                  No individual documents of this type made the top list.
+                </p>
+              ) : (
+                <ul className="space-y-1">
+                  {documents.map((document) => (
+                    <li key={document.id}>
+                      <Link
+                        to={`/documents/${document.id}`}
+                        className="flex items-center gap-3 rounded-md px-2 py-1.5 transition-default hover:bg-bg-weak-50"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-sm text-text-strong-950">
+                          {document.title ?? document.filename}
+                        </span>
+                        <span className="shrink-0 text-xs tabular-nums text-text-sub-600">
+                          {document.uses} {document.uses === 1 ? 'open' : 'opens'}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * What was asked of the corpus, and how fast it answered.
+ *
+ * No unique-user figure: this deployment has one account, and a tile that
+ * always reads "1" is furniture.
+ */
+function QueryInsightsCard({ ai }: { ai: OverviewStats['ai'] }) {
+  const rows = [
+    { icon: Activity, label: 'Total queries', value: String(ai.totalQueries) },
+    { icon: Search, label: 'Searches', value: String(ai.searches) },
+    { icon: MessageSquare, label: 'AI questions', value: String(ai.questions) },
+    {
+      icon: Timer,
+      label: 'Avg. response time',
+      // Null rather than zero when nothing in the window was timed — an
+      // average over no samples is not a fast system.
+      value: ai.avgResponseMs === null ? 'Not measured yet' : formatDuration(ai.avgResponseMs),
+    },
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-baseline justify-between pb-2">
+        <CardTitle>AI query insights</CardTitle>
+        <CardLink to="/audit">Activity log</CardLink>
+      </CardHeader>
+      <CardContent>
+        <ul className="divide-y divide-stroke-soft-200">
+          {rows.map((row) => (
+            <li key={row.label} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-bg-weak-50 text-text-sub-600">
+                <row.icon className="size-3.5" />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm text-text-sub-600">{row.label}</span>
+              <span className="shrink-0 text-sm font-medium tabular-nums text-text-strong-950">
+                {row.value}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CardLink({ to, children }: { to: string; children: string }) {
+  return (
+    <Link
+      to={to}
+      className="flex items-center gap-1 text-sm font-normal text-primary-base hover:underline"
+    >
+      {children}
+      <ArrowRight className="size-3.5" />
+    </Link>
+  );
+}
+
+function labelledRows(counts: Record<string, number>, labels: Record<string, string>) {
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([key, value]) => ({ key, label: labels[key] ?? key, value }));
 }
 
 function formatBytes(bytes: number): string {
@@ -246,10 +376,6 @@ function formatBytes(bytes: number): string {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-function formatDay(date: string): string {
-  return new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+function formatDuration(ms: number): string {
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`;
 }

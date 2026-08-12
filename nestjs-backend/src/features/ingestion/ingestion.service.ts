@@ -1,5 +1,6 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
+import type { DocumentSource } from '@prisma/client';
 import type { Queue } from 'bullmq';
 import { decodeMultipartFilename } from '@common/text/decode-multipart-filename';
 import { allowedTypeFor, rejectionMessage } from '@infrastructure/storage/allowlist';
@@ -28,7 +29,12 @@ export class IngestionService {
     @InjectQueue(QUEUE_NAMES.DOCUMENT_INGEST) private readonly queue: Queue<IngestJobData>,
   ) {}
 
-  async upload(file: UploadedFile, ownerId: string) {
+  /**
+   * `source` records which door the file came through, so the library can
+   * report what a connector actually contributed. It defaults to a browser
+   * upload because that is the only door that existed first.
+   */
+  async upload(file: UploadedFile, ownerId: string, source: DocumentSource = 'upload') {
     const filename = decodeMultipartFilename(file.originalname);
 
     // Extension decides the type. `file.mimetype` is the client's
@@ -59,6 +65,7 @@ export class IngestionService {
         storagePath,
         contentHash,
         ownerId,
+        source,
         status: 'uploaded',
       },
       select: { id: true, filename: true, status: true, uploadedAt: true },

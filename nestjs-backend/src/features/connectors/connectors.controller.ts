@@ -113,6 +113,7 @@ export class ConnectorsController {
         const document = await this.ingestion.upload(
           { originalname: filename, buffer: bytes, size: bytes.length },
           user.id,
+          'google_drive',
         );
         results.push({ driveId: file.id, name: file.name, status: 'queued', document });
       } catch (failure) {
