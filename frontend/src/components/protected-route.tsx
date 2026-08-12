@@ -24,8 +24,8 @@ export function ProtectedRoute({ children, permission }: Props) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Đang tải phiên làm việc…
+      <div className="flex min-h-screen items-center justify-center text-sm text-text-sub-600">
+        Loading your session…
       </div>
     );
   }
@@ -37,10 +37,10 @@ export function ProtectedRoute({ children, permission }: Props) {
   if (permission && !can(permission)) {
     return (
       <div className="space-y-2 py-16 text-center">
-        <h1 className="text-xl font-semibold">Không đủ quyền</h1>
-        <p className="text-sm text-muted-foreground">
-          Trang này cần quyền <span className="font-medium">{permission}</span>, mà vai trò{' '}
-          <span className="font-medium">{user.role}</span> không có.
+        <h1 className="text-xl font-semibold">Not enough permissions</h1>
+        <p className="text-sm text-text-sub-600">
+          This page needs the <span className="font-medium">{permission}</span> permission, which
+          the <span className="font-medium">{user.role}</span> role does not have.
         </p>
       </div>
     );

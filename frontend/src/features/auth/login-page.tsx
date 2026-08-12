@@ -30,19 +30,19 @@ export function LoginPage() {
       await login(email, password);
       navigate(from, { replace: true });
     } catch (err) {
-      setError(extractErrorMessage(err, 'Đăng nhập thất bại. Thử lại.'));
+      setError(extractErrorMessage(err, 'Sign-in failed. Please try again.'));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-bg-weak-50 px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="space-y-1 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">eDIP</h1>
-          <p className="text-sm text-muted-foreground">
-            Nền tảng khai thác tài liệu — đăng nhập để tiếp tục
+          <p className="text-sm text-text-sub-600">
+            Document intelligence platform — sign in to continue
           </p>
         </div>
 
@@ -66,7 +66,7 @@ export function LoginPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium" htmlFor="password">
-                  Mật khẩu
+                  Password
                 </label>
                 <Input
                   id="password"
@@ -79,20 +79,20 @@ export function LoginPage() {
               </div>
 
               {error && (
-                <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <p className="rounded-md bg-danger-light px-3 py-2 text-sm text-danger-base">
                   {error}
                 </p>
               )}
 
               <Button className="w-full" type="submit" disabled={submitting}>
-                {submitting ? 'Đang đăng nhập…' : 'Đăng nhập'}
+                {submitting ? 'Signing in…' : 'Sign in'}
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground">
-          Tài khoản demo: admin@ · user@ · viewer@ecloudvalley.demo
+        <p className="text-center text-xs text-text-sub-600">
+          Demo accounts: admin@ · user@ · viewer@ecloudvalley.demo
         </p>
       </div>
     </div>

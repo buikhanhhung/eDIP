@@ -87,7 +87,7 @@ export function UploadPage() {
           ...current,
         ]);
       } catch (err) {
-        setError(extractErrorMessage(err, `Không tải lên được ${file.name}.`));
+        setError(extractErrorMessage(err, `Could not upload ${file.name}.`));
       }
     }
 
@@ -103,9 +103,9 @@ export function UploadPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Tải tài liệu lên</h1>
-        <p className="text-sm text-muted-foreground">
-          Thả tệp vào đây. Hệ thống tự trích văn bản, phân loại và rút metadata.
+        <h1 className="text-2xl font-semibold tracking-tight">Upload documents</h1>
+        <p className="text-sm text-text-sub-600">
+          Drop files here. Text extraction, classification and metadata all run automatically.
         </p>
       </div>
 
@@ -117,12 +117,13 @@ export function UploadPage() {
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
         className={cn(
-          'rounded-lg border-2 border-dashed bg-background p-10 text-center transition-colors',
-          dragging ? 'border-primary bg-primary/5' : 'border-border',
+          'rounded-lg border-2 border-dashed bg-bg-white-0 p-10 text-center transition-default',
+          dragging ? 'border-primary-base bg-primary-lighter' : 'border-stroke-soft-200',
         )}
       >
-        <p className="text-sm text-muted-foreground">
-          Kéo thả tệp, hoặc chọn từ máy. PDF scan và ảnh được đọc bằng vision (tối đa 5 trang đầu).
+        <p className="text-sm text-text-sub-600">
+          Drag files in, or pick them from your computer. Scanned PDFs and images are read with
+          vision, up to the first 5 pages.
         </p>
         <input
           ref={inputRef}
@@ -133,17 +134,17 @@ export function UploadPage() {
           onChange={(e) => void submit(e.target.files)}
         />
         <Button className="mt-4" disabled={busy} onClick={() => inputRef.current?.click()}>
-          {busy ? 'Đang tải lên…' : 'Chọn tệp'}
+          {busy ? 'Uploading…' : 'Choose files'}
         </Button>
       </div>
 
       {error && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+        <p className="rounded-md bg-danger-light px-3 py-2 text-sm text-danger-base">{error}</p>
       )}
 
       {tracked.length > 0 && (
         <Card>
-          <CardContent className="divide-y pt-6">
+          <CardContent className="divide-y divide-stroke-soft-200 pt-6">
             {tracked.map((item) => (
               <div key={item.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
                 <Link to={`/documents/${item.id}`} className="min-w-0 flex-1 truncate font-medium hover:underline">
@@ -152,7 +153,7 @@ export function UploadPage() {
                 {item.documentType && <Badge variant="secondary">{item.documentType}</Badge>}
                 <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
                 {item.error && (
-                  <span className="max-w-sm truncate text-xs text-destructive" title={item.error}>
+                  <span className="max-w-sm truncate text-xs text-danger-base" title={item.error}>
                     {item.error}
                   </span>
                 )}

@@ -22,13 +22,13 @@ interface AuditRow {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  'document.upload': 'Tải lên',
-  'document.view': 'Xem',
-  'document.edit-metadata': 'Sửa metadata',
-  'document.delete': 'Xoá',
-  'document.download': 'Tải xuống',
-  'search.query': 'Tìm kiếm',
-  'ask.query': 'Hỏi AI',
+  'document.upload': 'Upload',
+  'document.view': 'View',
+  'document.edit-metadata': 'Edit metadata',
+  'document.delete': 'Delete',
+  'document.download': 'Download',
+  'search.query': 'Search',
+  'ask.query': 'Ask AI',
 };
 
 export function AuditPage() {
@@ -39,38 +39,38 @@ export function AuditPage() {
         .data,
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Đang tải nhật ký…</p>;
-  if (isError || !data) return <p className="text-sm text-destructive">Không tải được nhật ký.</p>;
+  if (isLoading) return <p className="text-sm text-text-sub-600">Loading the activity log…</p>;
+  if (isError || !data) return <p className="text-sm text-danger-base">Could not load the activity log.</p>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Nhật ký hoạt động</h1>
-        <p className="text-sm text-muted-foreground">{data.total} bản ghi</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Activity log</h1>
+        <p className="text-sm text-text-sub-600">{data.total} entries</p>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-stroke-soft-200 bg-bg-white-0 shadow-soft">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Thời điểm</TableHead>
-              <TableHead>Người thực hiện</TableHead>
-              <TableHead>Hành động</TableHead>
-              <TableHead>Đối tượng</TableHead>
+              <TableHead>Time</TableHead>
+              <TableHead>Actor</TableHead>
+              <TableHead>Action</TableHead>
+              <TableHead>Target</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
-                  Chưa có hoạt động nào được ghi lại.
+                <TableCell colSpan={4} className="py-10 text-center text-text-sub-600">
+                  No activity has been recorded yet.
                 </TableCell>
               </TableRow>
             )}
             {data.items.map((row) => (
               <TableRow key={row.id}>
-                <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
-                  {new Date(row.createdAt).toLocaleString('vi-VN')}
+                <TableCell className="whitespace-nowrap tabular-nums text-text-sub-600">
+                  {new Date(row.createdAt).toLocaleString('en-GB')}
                 </TableCell>
                 <TableCell>
                   {row.actor ? (
@@ -78,7 +78,7 @@ export function AuditPage() {
                       {row.actor.email} <Badge variant="outline">{row.actor.role}</Badge>
                     </span>
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-text-sub-600">—</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -86,13 +86,13 @@ export function AuditPage() {
                 </TableCell>
                 <TableCell className="max-w-xs truncate">
                   {row.meta?.q ? (
-                    <span className="text-muted-foreground">“{row.meta.q}”</span>
+                    <span className="text-text-sub-600">“{row.meta.q}”</span>
                   ) : row.targetId ? (
                     <Link to={`/documents/${row.targetId}`} className="hover:underline">
                       {row.targetId}
                     </Link>
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-text-sub-600">—</span>
                   )}
                 </TableCell>
               </TableRow>

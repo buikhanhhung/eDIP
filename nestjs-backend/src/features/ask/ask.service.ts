@@ -11,7 +11,7 @@ const LANE_LIMIT = 8;
 const CONTEXT_CHUNKS = 8;
 
 /** The exact sentence the model is told to use when the context is not enough. */
-export const NO_ANSWER = 'Không tìm thấy thông tin này trong kho tài liệu.';
+export const NO_ANSWER = 'That information is not in the document collection.';
 
 export interface Citation {
   documentId: string;

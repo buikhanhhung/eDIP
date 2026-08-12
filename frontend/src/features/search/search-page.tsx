@@ -33,6 +33,9 @@ interface Citation {
   snippet: string;
 }
 
+// Left in Vietnamese on purpose: they run against a Vietnamese corpus, and the
+// middle one is unaccented to show that a query without diacritics still finds
+// documents that have them.
 const SUGGESTIONS = ['hợp đồng với Saigon Retail', 'hop dong', 'chính sách lưu trữ dữ liệu'];
 
 export function SearchPage() {
@@ -64,9 +67,10 @@ export function SearchPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Tìm kiếm & Hỏi đáp</h1>
-        <p className="text-sm text-muted-foreground">
-          Tìm kiếm lai ghép giữa ngữ nghĩa và từ khoá. Gõ không dấu vẫn ra tài liệu có dấu.
+        <h1 className="text-2xl font-semibold tracking-tight">Search &amp; Ask</h1>
+        <p className="text-sm text-text-sub-600">
+          Hybrid search across meaning and keywords. Queries without Vietnamese diacritics still
+          match documents that have them.
         </p>
       </div>
 
@@ -85,7 +89,7 @@ export function SearchPage() {
                 : 'text-text-sub-600 hover:text-text-strong-950',
             )}
           >
-            {value === 'search' ? 'Tìm kiếm' : 'Hỏi AI'}
+            {value === 'search' ? 'Search' : 'Ask AI'}
           </button>
         ))}
       </div>
@@ -95,11 +99,13 @@ export function SearchPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={
-            mode === 'search' ? 'Nhập từ khoá hoặc câu mô tả' : 'Hỏi một câu về kho tài liệu'
+            mode === 'search'
+              ? 'Enter a keyword or describe what you are looking for'
+              : 'Ask a question about the document collection'
           }
         />
         <Button type="submit" disabled={active.isPending}>
-          {active.isPending ? 'Đang xử lý…' : mode === 'search' ? 'Tìm' : 'Hỏi'}
+          {active.isPending ? 'Working…' : mode === 'search' ? 'Search' : 'Ask'}
         </Button>
       </form>
 
@@ -108,7 +114,7 @@ export function SearchPage() {
           <button
             key={suggestion}
             type="button"
-            className="rounded-full border px-3 py-1 text-xs text-muted-foreground hover:bg-accent"
+            className="rounded-full border border-stroke-soft-200 bg-bg-white-0 px-3 py-1 text-xs text-text-sub-600 transition-default hover:border-primary-base hover:text-primary-base"
             onClick={() => {
               setQuery(suggestion);
               if (mode === 'search') search.mutate(suggestion);
@@ -121,14 +127,14 @@ export function SearchPage() {
       </div>
 
       {active.isError && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {extractErrorMessage(active.error, 'Không thực hiện được truy vấn.')}
+        <p className="rounded-md bg-danger-light px-3 py-2 text-sm text-danger-base">
+          {extractErrorMessage(active.error, 'The query could not be run.')}
         </p>
       )}
 
       {mode === 'search' && !search.data && !search.isPending && (
-        <p className="text-sm text-muted-foreground">
-          Nhập một truy vấn, hoặc bấm một gợi ý ở trên để bắt đầu.
+        <p className="text-sm text-text-sub-600">
+          Enter a query, or pick one of the suggestions above to get started.
         </p>
       )}
 
@@ -143,13 +149,13 @@ function SearchResults({ data }: { data: { hits: SearchHit[]; degraded: boolean 
   return (
     <div className="space-y-3">
       {data.degraded && (
-        <p className="rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-900">
-          Một nhánh tìm kiếm không phản hồi — kết quả chỉ đến từ nhánh còn lại.
+        <p className="rounded-md bg-warning-light px-3 py-2 text-sm text-warning-base">
+          One search lane did not respond — these results come from the other lane only.
         </p>
       )}
 
       {data.hits.length === 0 && (
-        <p className="text-sm text-muted-foreground">Không tìm thấy tài liệu nào khớp.</p>
+        <p className="text-sm text-text-sub-600">No documents matched.</p>
       )}
 
       {data.hits.map((hit) => (
@@ -160,11 +166,11 @@ function SearchResults({ data }: { data: { hits: SearchHit[]; degraded: boolean 
                 {hit.title ?? hit.filename}
               </Link>
               {hit.documentType && <Badge variant="secondary">{typeLabel(hit.documentType)}</Badge>}
-              <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+              <span className="ml-auto text-xs tabular-nums text-text-sub-600">
                 {hit.lanes.join(' + ')} · {hit.score.toFixed(3)}
               </span>
             </div>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-text-sub-600">
               <HighlightedSnippet snippet={hit.snippet} />
             </p>
           </CardContent>
@@ -184,7 +190,7 @@ function HighlightedSnippet({ snippet }: { snippet: Snippet }) {
   return (
     <>
       {snippet.text.slice(0, snippet.matchStart)}
-      <mark className="rounded bg-amber-200 px-0.5 text-foreground">
+      <mark className="rounded bg-warning-light px-0.5 text-text-strong-950">
         {snippet.text.slice(snippet.matchStart, snippet.matchEnd)}
       </mark>
       {snippet.text.slice(snippet.matchEnd)}
@@ -206,15 +212,16 @@ function AskAnswer({
       </Card>
 
       {data.unsourced && (
-        <p className="rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-900">
-          Câu trả lời này không trích dẫn nguồn nào. Hãy đối chiếu lại với tài liệu gốc.
+        <p className="rounded-md bg-warning-light px-3 py-2 text-sm text-warning-base">
+          This answer cites no source. Check it against the original documents before relying on
+          it.
         </p>
       )}
 
       {data.citations.length > 0 && (
         <div className="space-y-2">
-          <h2 className="text-sm font-medium text-muted-foreground">
-            Nguồn ({data.citations.length})
+          <h2 className="text-sm font-medium text-text-sub-600">
+            Sources ({data.citations.length})
           </h2>
           {data.citations.map((citation) => (
             <Card key={`${citation.documentId}-${citation.chunkId}`}>
@@ -225,7 +232,7 @@ function AskAnswer({
                 >
                   {citation.title ?? citation.filename}
                 </Link>
-                <p className="text-sm text-muted-foreground">{citation.snippet}</p>
+                <p className="text-sm text-text-sub-600">{citation.snippet}</p>
               </CardContent>
             </Card>
           ))}

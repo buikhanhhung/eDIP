@@ -24,22 +24,22 @@ export interface DocumentStats {
   byType: Record<string, number>;
 }
 
-/** Vietnamese labels for the document types eDIP v1 produced. */
+/** Display labels for the document types the classifier produces. */
 export const TYPE_LABELS: Record<string, string> = {
-  contract: 'Hợp đồng',
-  invoice: 'Hoá đơn',
-  policy: 'Chính sách',
-  report: 'Báo cáo',
-  kyc: 'Hồ sơ KYC',
-  other: 'Khác',
-  unknown: 'Chưa phân loại',
+  contract: 'Contract',
+  invoice: 'Invoice',
+  policy: 'Policy',
+  report: 'Report',
+  kyc: 'KYC record',
+  other: 'Other',
+  unknown: 'Unclassified',
 };
 
 export const STATUS_LABELS: Record<string, string> = {
-  uploaded: 'Đã tải lên',
-  processing: 'Đang xử lý',
-  completed: 'Hoàn tất',
-  failed: 'Lỗi',
+  uploaded: 'Uploaded',
+  processing: 'Processing',
+  completed: 'Completed',
+  failed: 'Failed',
 };
 
 export function typeLabel(type: string | null): string {

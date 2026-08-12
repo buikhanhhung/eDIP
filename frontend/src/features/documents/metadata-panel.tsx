@@ -70,12 +70,12 @@ export function MetadataPanel(props: Props) {
   if (editing) {
     return (
       <div className="space-y-3 text-sm">
-        <Field label="Tiêu đề">
+        <Field label="Title">
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
-        <Field label="Loại">
+        <Field label="Type">
           <Select value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
-            <option value="">— giữ nguyên —</option>
+            <option value="">— keep current —</option>
             {Object.entries(TYPE_LABELS)
               .filter(([key]) => key !== 'unknown')
               .map(([key, label]) => (
@@ -83,39 +83,38 @@ export function MetadataPanel(props: Props) {
                   {label}
                 </option>
               ))}
-            <option value="other">Khác</option>
           </Select>
         </Field>
-        <Field label="Các bên">
+        <Field label="Parties">
           <Input
             value={parties}
             onChange={(e) => setParties(e.target.value)}
-            placeholder="Ngăn cách bằng dấu phẩy"
+            placeholder="Separate with commas"
           />
         </Field>
-        <Field label="Ngày">
+        <Field label="Date">
           <Input value={date} onChange={(e) => setDate(e.target.value)} placeholder="2026-03-15" />
         </Field>
-        <Field label="Giá trị">
+        <Field label="Amount">
           <Input value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
 
         {save.isError && (
-          <p className="text-sm text-destructive">
-            {extractErrorMessage(save.error, 'Không lưu được.')}
+          <p className="text-sm text-danger-base">
+            {extractErrorMessage(save.error, 'Could not save.')}
           </p>
         )}
 
         <div className="flex gap-2">
           <Button size="sm" disabled={save.isPending} onClick={() => save.mutate()}>
-            {save.isPending ? 'Đang lưu…' : 'Lưu'}
+            {save.isPending ? 'Saving…' : 'Save'}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
-            Huỷ
+            Cancel
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Sửa "Các bên" sẽ dựng lại liên kết công ty của tài liệu này trên đồ thị.
+        <p className="text-xs text-text-sub-600">
+          Editing “Parties” rebuilds this document's company links in the knowledge graph.
         </p>
       </div>
     );
@@ -123,40 +122,44 @@ export function MetadataPanel(props: Props) {
 
   return (
     <div className="space-y-2 text-sm">
-      <ReadOnly label="Loại">
+      <ReadOnly label="Type">
         {props.documentType ? (
           <span>
             {TYPE_LABELS[props.documentType] ?? props.documentType}
             {props.typeConfidence != null && (
-              <span className="text-muted-foreground">
+              <span className="text-text-sub-600">
                 {' '}
                 · {Math.round(props.typeConfidence * 100)}%
-                {props.typeConfidence === 1 && ' (đã xác nhận)'}
+                {props.typeConfidence === 1 && ' (confirmed)'}
               </span>
             )}
           </span>
         ) : null}
       </ReadOnly>
 
-      <ReadOnly label="Các bên">
-        <span className="flex flex-wrap gap-1">
-          {(props.metadata.parties ?? []).map((party) => (
-            <button
-              key={party}
-              type="button"
-              onMouseEnter={() => props.onHoverParty?.(party)}
-              onMouseLeave={() => props.onHoverParty?.(null)}
-            >
-              <Badge variant="outline">{party}</Badge>
-            </button>
-          ))}
-        </span>
+      <ReadOnly label="Parties">
+        {/* An empty element is still truthy, so an empty list has to collapse to
+            nothing here or ReadOnly never falls back to its em dash. */}
+        {(props.metadata.parties ?? []).length > 0 && (
+          <span className="flex flex-wrap gap-1">
+            {(props.metadata.parties ?? []).map((party) => (
+              <button
+                key={party}
+                type="button"
+                onMouseEnter={() => props.onHoverParty?.(party)}
+                onMouseLeave={() => props.onHoverParty?.(null)}
+              >
+                <Badge variant="outline">{party}</Badge>
+              </button>
+            ))}
+          </span>
+        )}
       </ReadOnly>
 
-      <ReadOnly label="Ngày">{props.metadata.date}</ReadOnly>
-      <ReadOnly label="Giá trị">{props.metadata.amount}</ReadOnly>
-      <ReadOnly label="Ngôn ngữ">{props.language}</ReadOnly>
-      <ReadOnly label="Nguồn văn bản">{props.textSource}</ReadOnly>
+      <ReadOnly label="Date">{props.metadata.date}</ReadOnly>
+      <ReadOnly label="Amount">{props.metadata.amount}</ReadOnly>
+      <ReadOnly label="Language">{props.language}</ReadOnly>
+      <ReadOnly label="Text source">{props.textSource}</ReadOnly>
 
       {props.metadata.keywords && props.metadata.keywords.length > 0 && (
         <div className="flex flex-wrap gap-1 pt-1">
@@ -169,14 +172,14 @@ export function MetadataPanel(props: Props) {
       )}
 
       {props.editedAt && (
-        <p className="pt-1 text-xs text-muted-foreground">
-          Đã sửa tay lúc {new Date(props.editedAt).toLocaleString('vi-VN')}
+        <p className="pt-1 text-xs text-text-sub-600">
+          Edited by hand on {new Date(props.editedAt).toLocaleString('en-GB')}
         </p>
       )}
 
       {can('edit-metadata') && (
         <Button size="sm" variant="outline" className="mt-2" onClick={() => setEditing(true)}>
-          Sửa metadata
+          Edit metadata
         </Button>
       )}
     </div>
@@ -186,7 +189,7 @@ export function MetadataPanel(props: Props) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="text-xs font-medium text-text-sub-600">{label}</span>
       {children}
     </label>
   );
@@ -195,7 +198,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ReadOnly({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-2">
-      <span className="w-28 shrink-0 text-muted-foreground">{label}</span>
+      <span className="w-28 shrink-0 text-text-sub-600">{label}</span>
       <span className="min-w-0 flex-1 break-words">{children || '—'}</span>
     </div>
   );

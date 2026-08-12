@@ -45,7 +45,7 @@ declare module '@tanstack/react-table' {
 
 const columns = [
   columnHelper.accessor('filename', {
-    header: 'Tệp',
+    header: 'File',
     meta: { className: 'w-full max-w-0' },
     cell: (info) => (
       <div className="min-w-0">
@@ -62,7 +62,7 @@ const columns = [
     ),
   }),
   columnHelper.accessor('documentType', {
-    header: 'Loại',
+    header: 'Type',
     meta: { className: 'whitespace-nowrap' },
     cell: (info) =>
       info.getValue() ? (
@@ -72,7 +72,7 @@ const columns = [
       ),
   }),
   columnHelper.accessor('status', {
-    header: 'Trạng thái',
+    header: 'Status',
     meta: { className: 'max-w-[16rem]' },
     cell: (info) => (
       <div className="flex items-center gap-2">
@@ -86,7 +86,7 @@ const columns = [
     ),
   }),
   columnHelper.accessor('uploadedAt', {
-    header: 'Tải lên',
+    header: 'Uploaded',
     meta: { className: 'whitespace-nowrap' },
     cell: (info) => (
       <span className="tabular-nums text-text-sub-600">{formatDate(info.getValue())}</span>
@@ -94,7 +94,7 @@ const columns = [
   }),
   columnHelper.accessor((row) => row.owner?.email ?? '—', {
     id: 'owner',
-    header: 'Người tải',
+    header: 'Uploaded by',
     meta: { className: 'whitespace-nowrap' },
     cell: (info) => <span className="text-text-sub-600">{info.getValue()}</span>,
   }),
@@ -141,21 +141,21 @@ export function LibraryPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Thư viện</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
           <p className="text-sm text-text-sub-600">
-            {data ? `${data.total} tài liệu` : 'Đang tải…'}
+            {data ? `${data.total} documents` : 'Loading…'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Input
             className="w-56"
-            placeholder="Lọc theo tên tệp hoặc tiêu đề"
+            placeholder="Filter by file name or title"
             value={q}
             onChange={(e) => setFilter('q', e.target.value)}
           />
           <Select className="w-40" value={type} onChange={(e) => setFilter('type', e.target.value)}>
-            <option value="">Mọi loại</option>
+            <option value="">All types</option>
             {Object.entries(TYPE_LABELS)
               .filter(([key]) => key !== 'unknown')
               .map(([key, label]) => (
@@ -169,7 +169,7 @@ export function LibraryPage() {
             value={status}
             onChange={(e) => setFilter('status', e.target.value)}
           >
-            <option value="">Mọi trạng thái</option>
+            <option value="">All statuses</option>
             {Object.entries(STATUS_LABELS).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
@@ -178,7 +178,7 @@ export function LibraryPage() {
           </Select>
           {(q || type || status) && (
             <Button variant="ghost" size="sm" onClick={() => setSearchParams({}, { replace: true })}>
-              Xoá lọc
+              Clear filters
             </Button>
           )}
         </div>
@@ -186,7 +186,7 @@ export function LibraryPage() {
 
       <div className="overflow-hidden rounded-lg border border-stroke-soft-200 bg-bg-white-0 shadow-soft">
         {isError ? (
-          <p className="p-6 text-sm text-danger-base">Không tải được danh sách tài liệu.</p>
+          <p className="p-6 text-sm text-danger-base">Could not load the document list.</p>
         ) : (
           <Table>
             <TableHeader>
@@ -218,14 +218,14 @@ export function LibraryPage() {
                         different things. */}
                     {q || type || status ? (
                       <span className="text-text-sub-600">
-                        Không có tài liệu nào khớp bộ lọc.
+                        No documents match the current filters.
                       </span>
                     ) : (
                       <span className="text-text-sub-600">
-                        Chưa có tài liệu nào.{' '}
+                        No documents yet.{' '}
                         {can('upload') && (
-                          <Link to="/upload" className="text-primary hover:underline">
-                            Tải lên để bắt đầu
+                          <Link to="/upload" className="text-primary-base hover:underline">
+                            Upload one to get started
                           </Link>
                         )}
                       </span>

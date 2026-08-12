@@ -29,27 +29,27 @@ interface NavItem {
  */
 const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
   {
-    heading: 'Khám phá',
+    heading: 'Explore',
     items: [
-      { to: '/', label: 'Tổng quan', icon: LayoutDashboard, end: true },
-      { to: '/library', label: 'Thư viện', icon: FileText },
-      { to: '/search', label: 'Tìm kiếm', icon: Search, permission: 'search' },
-      { to: '/graph', label: 'Đồ thị', icon: Network },
+      { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
+      { to: '/library', label: 'Library', icon: FileText },
+      { to: '/search', label: 'Search', icon: Search, permission: 'search' },
+      { to: '/graph', label: 'Graph', icon: Network },
     ],
   },
   {
-    heading: 'Quản trị',
+    heading: 'Manage',
     items: [
-      { to: '/upload', label: 'Tải lên', icon: Upload, permission: 'upload' },
-      { to: '/audit', label: 'Nhật ký', icon: ScrollText, permission: 'audit' },
+      { to: '/upload', label: 'Upload', icon: Upload, permission: 'upload' },
+      { to: '/audit', label: 'Activity log', icon: ScrollText, permission: 'audit' },
     ],
   },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
-  admin: 'Toàn quyền',
-  user: 'Tìm kiếm & hỏi đáp',
-  viewer: 'Chỉ đọc',
+  admin: 'Full access',
+  user: 'Search and ask',
+  viewer: 'Read only',
 };
 
 export function AppShell() {
@@ -131,7 +131,7 @@ export function AppShell() {
               <button
                 type="button"
                 onClick={logout}
-                title="Đăng xuất"
+                title="Sign out"
                 className="rounded-md p-1.5 text-text-soft-400 transition-default hover:bg-bg-weak-50 hover:text-danger-base"
               >
                 <LogOut className="size-4" />
@@ -170,7 +170,7 @@ export function AppShell() {
         <button
           type="button"
           onClick={logout}
-          title="Đăng xuất"
+          title="Sign out"
           className="shrink-0 rounded-md p-1.5 text-text-soft-400 hover:text-danger-base"
         >
           <LogOut className="size-4" />
