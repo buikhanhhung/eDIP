@@ -5,11 +5,12 @@ import { ENTITY_TYPES, type EntityType } from './entity-normalizer';
 import type { IGraphStore } from './graph.port';
 
 /**
- * `minShared` defaults to 1 at the API and 2 in the interface — eDIP v1 split
- * these deliberately. A caller asking for the raw graph gets everything; the
- * demo view stays readable.
+ * Enough that no realistic corpus hits it during a demo, low enough that a
+ * runaway extraction cannot hand the browser a canvas it will not finish
+ * laying out.
  */
-const DEFAULT_MIN_SHARED = 1;
+const DEFAULT_LIMIT = 200;
+const MAX_LIMIT = 1000;
 
 @Controller('graph')
 export class GraphController {
@@ -18,18 +19,16 @@ export class GraphController {
   @RequirePermission('view')
   @Get()
   getGraph(
-    @Query('minShared') minShared?: string,
     @Query('types') types?: string,
-    @Query('relations') relations?: string,
+    @Query('relationTypes') relationTypes?: string,
+    @Query('limit') limit?: string,
   ) {
-    const parsed = Number(minShared);
+    const parsed = Number(limit);
     return this.graph.getGraph({
-      minShared: Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_MIN_SHARED,
       types: parseTypes(types),
-      // Off unless asked: typed edges are only present for documents that went
-      // through extraction, and a canvas mixing "no relations here" with
-      // "relations not requested" is unreadable.
-      includeRelations: relations === 'true' || relations === '1',
+      relationTypes: parseCsv(relationTypes),
+      limit:
+        Number.isFinite(parsed) && parsed > 0 ? Math.min(Math.floor(parsed), MAX_LIMIT) : DEFAULT_LIMIT,
     });
   }
 
@@ -55,4 +54,14 @@ function parseTypes(raw?: string): EntityType[] | undefined {
     .map((value) => value.trim())
     .filter((value): value is EntityType => (ENTITY_TYPES as readonly string[]).includes(value));
   return requested.length > 0 ? requested : undefined;
+}
+
+/** Relation labels are extractor output, so they are taken as given. */
+function parseCsv(raw?: string): string[] | undefined {
+  if (!raw) return undefined;
+  const values = raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return values.length > 0 ? values : undefined;
 }

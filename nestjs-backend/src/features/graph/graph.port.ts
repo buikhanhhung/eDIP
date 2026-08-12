@@ -6,9 +6,11 @@ export interface GraphNode {
   data: {
     id: string;
     label: string;
-    kind: 'document' | 'entity';
-    type?: string;
-    documentCount?: number;
+    type: string;
+    /** How many completed documents mention this entity — drives node size. */
+    documentCount: number;
+    /** Relations touching this entity, for ranking when the cap bites. */
+    degree: number;
     description?: string;
   };
 }
@@ -18,13 +20,11 @@ export interface GraphEdge {
     id: string;
     source: string;
     target: string;
-    /** `mentions` is document→entity; `relates` is entity→entity. */
-    kind: 'mentions' | 'relates';
-    /** Relationship label, on `relates` edges only. */
-    label?: string;
-    /** The sentence this edge was read from, on `relates` edges only. */
-    evidence?: string;
-    documentId?: string;
+    /** The relationship the extractor read, e.g. `CUNG_CẤP_DỊCH_VỤ_CHO`. */
+    label: string;
+    /** The sentence it was read from, so the claim can be checked. */
+    evidence: string;
+    documentId: string;
     confidence?: number;
   };
 }
@@ -32,14 +32,18 @@ export interface GraphEdge {
 export interface GraphPayload {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  /** Every relation type present before filtering, for the filter control. */
+  relationTypes: string[];
+  /** Entities that matched before the cap, so the UI can say "N of M". */
+  totalNodes: number;
 }
 
 export interface GetGraphOptions {
-  /** Minimum documents an entity must appear in to become a node. */
-  minShared: number;
   types?: readonly EntityType[];
-  /** Include typed entity→entity edges alongside the mention edges. */
-  includeRelations?: boolean;
+  /** Restrict to these relationship labels. Empty or absent means all. */
+  relationTypes?: readonly string[];
+  /** Cap on nodes drawn; the densest are kept. */
+  limit: number;
 }
 
 /**

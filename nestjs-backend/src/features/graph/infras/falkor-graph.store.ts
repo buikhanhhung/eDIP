@@ -291,113 +291,142 @@ export class FalkorGraphStore implements IGraphStore {
 
   // ---- reads --------------------------------------------------------------
 
-  async getGraph({ minShared, types, includeRelations }: GetGraphOptions): Promise<GraphPayload> {
+  /**
+   * The graph the product is about: entities joined by the relationships the
+   * extractor read out of the documents.
+   *
+   * Documents are deliberately not nodes here. Drawing them made the canvas
+   * bipartite — every document fanning out to every entity it mentions — and a
+   * bipartite graph of this shape forces edge crossings no layout can undo.
+   * They stay reachable from a node's detail panel instead, where a list reads
+   * better than a hairball anyway.
+   */
+  async getGraph({ types, relationTypes, limit }: GetGraphOptions): Promise<GraphPayload> {
     const allowed = [...((types ?? GRAPH_ENTITY_TYPES) as readonly EntityType[])];
 
-    // One aggregation over a path pattern, where the SQL version needed a CTE
-    // and three joins.
-    const rows = await this.falkor.query<MentionRow>(
-      `MATCH (d:Document {status: 'completed'})-[:MENTIONS]->(e:Entity)
-       WHERE e.type IN $types
-       WITH e, count(DISTINCT d) AS docCount
-       WHERE docCount >= $minShared
-       MATCH (doc:Document {status: 'completed'})-[:MENTIONS]->(e)
-       RETURN DISTINCT doc.id AS documentId, doc.label AS documentLabel,
-              e.id AS entityId, e.entity_name AS entityLabel, e.type AS entityType,
-              e.description AS entityDescription, docCount AS docCount`,
-      { types: allowed, minShared },
+    const rows = await this.falkor.query<{
+      id: string;
+      sourceEntityId: string;
+      targetEntityId: string;
+      sourceLabel: string;
+      sourceType: string;
+      sourceDescription: string | null;
+      targetLabel: string;
+      targetType: string;
+      targetDescription: string | null;
+      type: string;
+      evidence: string;
+      documentId: string;
+      confidence: number | null;
+    }>(
+      `MATCH (a:Entity)-[r:RELATES]->(b:Entity)
+       MATCH (d:Document {id: r.document_id, status: 'completed'})
+       WHERE a.type IN $types AND b.type IN $types
+       RETURN r.id AS id, a.id AS sourceEntityId, b.id AS targetEntityId,
+              a.entity_name AS sourceLabel, a.type AS sourceType,
+              a.description AS sourceDescription,
+              b.entity_name AS targetLabel, b.type AS targetType,
+              b.description AS targetDescription,
+              r.type AS type, r.evidence AS evidence,
+              r.document_id AS documentId, r.confidence AS confidence`,
+      { types: allowed },
     );
+
+    // Collected before the relation-type filter, so narrowing to one type does
+    // not empty the control that would let the reader widen it again.
+    const relationTypeNames = [...new Set(rows.map((row) => row.type))].sort();
+
+    const wanted = relationTypes && relationTypes.length > 0 ? new Set(relationTypes) : null;
+    const kept = wanted ? rows.filter((row) => wanted.has(row.type)) : rows;
 
     const nodes = new Map<string, GraphNode>();
     const edges = new Map<string, GraphEdge>();
 
-    for (const row of rows) {
-      nodes.set(row.documentId, {
-        data: { id: row.documentId, label: row.documentLabel, kind: 'document' },
-      });
-      nodes.set(row.entityId, {
-        data: {
-          id: row.entityId,
-          label: row.entityLabel,
-          kind: 'entity',
-          type: row.entityType,
-          documentCount: Number(row.docCount),
-          description: row.entityDescription ?? undefined,
+    for (const row of kept) {
+      for (const end of [
+        {
+          id: row.sourceEntityId,
+          label: row.sourceLabel,
+          type: row.sourceType,
+          description: row.sourceDescription,
         },
-      });
-
-      // Keyed by the pair: a document mentioning one entity under two
-      // spellings is two MENTIONS edges but one line on the canvas, and two
-      // edges sharing an id blank cytoscape.
-      const id = `${row.documentId}__${row.entityId}`;
-      edges.set(id, {
-        data: { id, source: row.documentId, target: row.entityId, kind: 'mentions' },
-      });
-    }
-
-    if (includeRelations) {
-      /**
-       * Relations are not restricted to entities that survived `minShared`.
-       *
-       * That filter asks "does this entity tie documents together", which is a
-       * different question from "did the extractor find a stated relationship".
-       * Applying it to relations hid five of seven edges behind the default
-       * setting, so turning the feature on appeared to do nothing. Endpoints
-       * missing from the mention pass are added as nodes here.
-       */
-      const relations = await this.falkor.query<{
-        id: string;
-        sourceEntityId: string;
-        targetEntityId: string;
-        sourceLabel: string;
-        sourceType: string;
-        targetLabel: string;
-        targetType: string;
-        type: string;
-        evidence: string;
-        documentId: string;
-        confidence: number | null;
-      }>(
-        `MATCH (a:Entity)-[r:RELATES]->(b:Entity)
-         MATCH (d:Document {id: r.document_id, status: 'completed'})
-         WHERE a.type IN $types AND b.type IN $types
-         RETURN r.id AS id, a.id AS sourceEntityId, b.id AS targetEntityId,
-                a.entity_name AS sourceLabel, a.type AS sourceType,
-                b.entity_name AS targetLabel, b.type AS targetType,
-                r.type AS type, r.evidence AS evidence,
-                r.document_id AS documentId, r.confidence AS confidence`,
-        { types: allowed },
-      );
-
-      for (const relation of relations) {
-        for (const end of [
-          { id: relation.sourceEntityId, label: relation.sourceLabel, type: relation.sourceType },
-          { id: relation.targetEntityId, label: relation.targetLabel, type: relation.targetType },
-        ]) {
-          if (!nodes.has(end.id)) {
-            nodes.set(end.id, {
-              data: { id: end.id, label: end.label, kind: 'entity', type: end.type },
-            });
-          }
+        {
+          id: row.targetEntityId,
+          label: row.targetLabel,
+          type: row.targetType,
+          description: row.targetDescription,
+        },
+      ]) {
+        const existing = nodes.get(end.id);
+        if (existing) {
+          existing.data.degree += 1;
+          continue;
         }
-
-        edges.set(relation.id, {
+        nodes.set(end.id, {
           data: {
-            id: relation.id,
-            source: relation.sourceEntityId,
-            target: relation.targetEntityId,
-            kind: 'relates',
-            label: relation.type,
-            evidence: relation.evidence,
-            documentId: relation.documentId,
-            confidence: relation.confidence ?? undefined,
+            id: end.id,
+            label: end.label,
+            type: end.type,
+            documentCount: 0,
+            degree: 1,
+            description: end.description ?? undefined,
           },
         });
       }
+
+      edges.set(row.id, {
+        data: {
+          id: row.id,
+          source: row.sourceEntityId,
+          target: row.targetEntityId,
+          label: row.type,
+          evidence: row.evidence,
+          documentId: row.documentId,
+          confidence: row.confidence ?? undefined,
+        },
+      });
     }
 
-    this.logger.log(`graph(minShared=${minShared}): ${nodes.size} nodes, ${edges.size} edges`);
-    return { nodes: [...nodes.values()], edges: [...edges.values()] };
+    // Size follows reach across the corpus, which is a different question from
+    // how many relations were extracted, so it needs its own count.
+    if (nodes.size > 0) {
+      const counts = await this.falkor.query<{ entityId: string; docCount: number }>(
+        `MATCH (d:Document {status: 'completed'})-[:MENTIONS]->(e:Entity)
+         WHERE e.id IN $ids
+         RETURN e.id AS entityId, count(DISTINCT d) AS docCount`,
+        { ids: [...nodes.keys()] },
+      );
+      for (const count of counts) {
+        const node = nodes.get(count.entityId);
+        if (node) node.data.documentCount = Number(count.docCount);
+      }
+    }
+
+    const totalNodes = nodes.size;
+
+    // Over the cap, keep the best-connected entities and drop any edge that
+    // loses an endpoint — a dangling edge blanks the whole cytoscape canvas.
+    let finalNodes = [...nodes.values()];
+    let finalEdges = [...edges.values()];
+    if (finalNodes.length > limit) {
+      finalNodes = finalNodes
+        .sort((a, b) => b.data.degree - a.data.degree || b.data.documentCount - a.data.documentCount)
+        .slice(0, limit);
+      const surviving = new Set(finalNodes.map((node) => node.data.id));
+      finalEdges = finalEdges.filter(
+        (edge) => surviving.has(edge.data.source) && surviving.has(edge.data.target),
+      );
+    }
+
+    this.logger.log(
+      `graph: ${finalNodes.length}/${totalNodes} entities, ${finalEdges.length} relations`,
+    );
+    return {
+      nodes: finalNodes,
+      edges: finalEdges,
+      relationTypes: relationTypeNames,
+      totalNodes,
+    };
   }
 
   async getDocumentsForEntity(entityId: string) {

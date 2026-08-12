@@ -28,9 +28,12 @@ export class GeminiLlmService implements ILlmService {
    * Spaces requests by `GEMINI_MIN_REQUEST_INTERVAL_MS`.
    *
    * Ingesting one document is one analysis call plus two per chunk, issued
-   * back to back — six calls for a two-chunk file, against a free tier that
-   * allows five a minute. Waiting is what makes the pipeline finish at all on
-   * that plan; a paid key sets the interval to 0 and pays nothing for this.
+   * back to back — six calls for a two-chunk file. The free tier answers 429
+   * above a per-minute request ceiling that depends on the model
+   * (`gemini-3.5-flash-lite` reports 15), and BullMQ retries the whole job, so
+   * an unpaced run burns the allowance on retries and finishes nothing.
+   * Waiting is what makes the pipeline complete at all on that plan; a paid key
+   * sets the interval to 0 and pays nothing for this.
    */
   private async paced<T>(run: () => Promise<T>): Promise<T> {
     if (this.minIntervalMs <= 0) return run();
