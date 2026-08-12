@@ -4,12 +4,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge, statusVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, extractErrorMessage } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { MetadataPanel, type DocumentMetadata } from './metadata-panel';
 import { TextPreview, type HighlightSpan } from './text-preview';
 import { statusLabel, typeLabel, type DocumentListItem } from './document-types';
+import { downloadDocument } from './download-document';
 
 interface DocumentEntity extends HighlightSpan {
   displayName: string;
@@ -29,6 +30,7 @@ export function DocumentDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeEntityId, setActiveEntityId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['document', id],
@@ -45,8 +47,8 @@ export function DocumentDetailPage() {
     },
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Đang tải tài liệu…</p>;
-  if (isError || !data) return <p className="text-sm text-destructive">Không tìm thấy tài liệu.</p>;
+  if (isLoading) return <p className="text-sm text-text-sub-600">Loading document…</p>;
+  if (isError || !data) return <p className="text-sm text-danger-base">Document not found.</p>;
 
   const metadata = (data.metadata ?? {}) as DocumentMetadata;
 
@@ -63,26 +65,34 @@ export function DocumentDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <Link to="/library" className="text-sm text-muted-foreground hover:underline">
-            ← Thư viện
+          <Link to="/library" className="text-sm text-text-sub-600 hover:underline">
+            ← Library
           </Link>
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             {data.title ?? data.filename}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {data.filename} · tải lên {formatDate(data.uploadedAt)}
+          <p className="text-sm text-text-sub-600">
+            {data.filename} · uploaded {formatDate(data.uploadedAt)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {data.documentType && <Badge variant="secondary">{typeLabel(data.documentType)}</Badge>}
           <Badge variant={statusVariant(data.status)}>{statusLabel(data.status)}</Badge>
           {can('download') && (
-            <a
-              className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
-              href={`${apiClient.defaults.baseURL}/documents/${data.id}/download`}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                setDownloadError(null);
+                try {
+                  await downloadDocument(data.id, data.filename);
+                } catch (err) {
+                  setDownloadError(extractErrorMessage(err, 'Could not download this file.'));
+                }
+              }}
             >
-              Tải xuống
-            </a>
+              Download
+            </Button>
           )}
           {can('delete') && (
             <Button
@@ -90,27 +100,27 @@ export function DocumentDetailPage() {
               variant="destructive"
               disabled={remove.isPending}
               onClick={() => {
-                if (confirm(`Xoá "${data.filename}"? Thao tác này không hoàn tác được.`)) {
+                if (confirm(`Delete "${data.filename}"? This cannot be undone.`)) {
                   remove.mutate();
                 }
               }}
             >
-              Xoá
+              Delete
             </Button>
           )}
         </div>
       </div>
 
-      {data.error && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {data.error}
+      {(data.error || downloadError) && (
+        <p className="rounded-md bg-danger-light px-3 py-2 text-sm text-danger-base">
+          {downloadError ?? data.error}
         </p>
       )}
 
       {data.summary && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle>Tóm tắt</CardTitle>
+            <CardTitle>Summary</CardTitle>
           </CardHeader>
           <CardContent className="text-sm leading-relaxed">{data.summary}</CardContent>
         </Card>
@@ -138,11 +148,11 @@ export function DocumentDetailPage() {
 
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle>Thực thể nhận dạng ({data.entities.length})</CardTitle>
+            <CardTitle>Recognised entities ({data.entities.length})</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {data.entities.length === 0 && (
-              <p className="text-sm text-muted-foreground">Chưa có thực thể nào.</p>
+              <p className="text-sm text-text-sub-600">No entities were found.</p>
             )}
             {data.entities.map((entity) => (
               <button
@@ -155,8 +165,8 @@ export function DocumentDetailPage() {
                   variant={entity.charStart != null ? 'default' : 'secondary'}
                   title={
                     entity.charStart != null
-                      ? `${entity.type} · vị trí ${entity.charStart}`
-                      : `${entity.type} · không xác định được vị trí`
+                      ? `${entity.type} · at character ${entity.charStart}`
+                      : `${entity.type} · position not located in the text`
                   }
                 >
                   {entity.displayName}
@@ -170,7 +180,7 @@ export function DocumentDetailPage() {
       {data.textContent && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle>Nội dung trích xuất</CardTitle>
+            <CardTitle>Extracted text</CardTitle>
           </CardHeader>
           <CardContent>
             <TextPreview
