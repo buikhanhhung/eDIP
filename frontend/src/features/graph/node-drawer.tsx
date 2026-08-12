@@ -92,11 +92,11 @@ export function NodeDrawer({ node, onClose, onFocus }: Props) {
   const Icon = ENTITY_ICONS[node.type] ?? FileText;
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-40 flex w-[22rem] flex-col border-l border-stroke-soft-200 bg-bg-white-0 shadow-raised">
+    <aside className="fixed inset-y-0 right-0 z-40 flex w-[22rem] flex-col border-l border-stroke-sub-300 bg-bg-white-0 shadow-raised">
       {/* A wash of the entity's own colour, so the panel is recognisably about
           the node that was clicked rather than a generic sheet. */}
       <header
-        className="shrink-0 border-b border-stroke-soft-200 p-5"
+        className="shrink-0 border-b border-stroke-sub-300 p-5"
         style={{ backgroundColor: `${color}0f` }}
       >
         <div className="flex items-start gap-3">
@@ -150,7 +150,7 @@ export function NodeDrawer({ node, onClose, onFocus }: Props) {
               {relations.map((relation) => (
                 <li
                   key={relation.id}
-                  className="rounded-xl border border-stroke-soft-200 p-3 transition-default hover:border-stroke-sub-300"
+                  className="rounded-xl border border-stroke-sub-300 bg-bg-white-0 p-3 shadow-soft transition-default hover:border-text-soft-400"
                 >
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span
@@ -173,7 +173,10 @@ export function NodeDrawer({ node, onClose, onFocus }: Props) {
 
                   {/* Every typed edge shows the sentence it came from, so a
                       reader can reject it without leaving the drawer. */}
-                  <blockquote className="mt-2 flex gap-1.5 rounded-lg bg-bg-weak-50 p-2">
+                  <blockquote
+                    className="mt-2 flex gap-1.5 rounded-lg border-l-2 bg-bg-weak-50 p-2"
+                    style={{ borderColor: color }}
+                  >
                     <Quote className="size-3 shrink-0 text-text-soft-400" />
                     <span className="text-xs italic leading-relaxed text-text-sub-600">
                       {relation.evidence}
@@ -211,7 +214,7 @@ export function NodeDrawer({ node, onClose, onFocus }: Props) {
                 <li key={document.id}>
                   <Link
                     to={`/documents/${document.id}`}
-                    className="flex items-center gap-2.5 rounded-xl border border-stroke-soft-200 p-2.5 transition-default hover:border-primary-base"
+                    className="flex items-center gap-2.5 rounded-xl border border-stroke-sub-300 bg-bg-white-0 p-2.5 shadow-soft transition-default hover:border-primary-base"
                   >
                     <FileTypeChip filename={document.filename} />
                     <span className="min-w-0 flex-1">
@@ -247,7 +250,7 @@ function Stat({
   color: string;
 }) {
   return (
-    <div className="rounded-lg bg-bg-white-0 px-2 py-2 text-center">
+    <div className="rounded-lg border border-stroke-soft-200 bg-bg-white-0 px-2 py-2 text-center">
       <Icon className="mx-auto size-3.5" style={{ color }} />
       <p className="mt-1 text-base font-semibold leading-none tabular-nums text-text-strong-950">
         {value}
