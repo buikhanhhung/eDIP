@@ -62,32 +62,76 @@ function flattenProse(html: string): string {
     .replace(/\n{3,}/g, '\n\n');
 }
 
+/**
+ * Lays the cells out on a grid, resolving spans.
+ *
+ * Markdown has no merged cell, so a span repeats its value in every slot it
+ * covers. Repeating beats leaving the slots blank: a reader scanning the
+ * column, and a query matching against it, both find the row they wanted. It
+ * is also what the vision prompt asks the model to do, so a table reaches the
+ * index in the same shape whichever path the document came in by.
+ */
 function toMarkdownTable(inner: string): string {
-  const rows: string[][] = [];
-  let headerWidth = 0;
+  const grid: string[][] = [];
+  /** Values still descending from a rowspan, keyed by column. */
+  const carried = new Map<number, { text: string; rowsLeft: number }>();
+  let width = 0;
 
   for (const rowMatch of inner.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
-    const cells: string[] = [];
-    for (const cellMatch of rowMatch[1].matchAll(/<(t[hd])\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
-      // A newline inside a cell would break the row apart, so the cell is
-      // flattened to one line; a literal pipe would open a phantom column.
-      cells.push(flattenProse(cellMatch[2]).replace(/\s+/g, ' ').replace(/\|/g, '\\|').trim());
+    const row: string[] = [];
+
+    const place = (text: string) => {
+      while (carried.has(row.length)) {
+        const carry = carried.get(row.length)!;
+        row.push(carry.text);
+        carry.rowsLeft -= 1;
+        if (carry.rowsLeft <= 0) carried.delete(row.length - 1);
+      }
+      row.push(text);
+    };
+
+    for (const cellMatch of rowMatch[1].matchAll(/<(t[hd])([^>]*)>([\s\S]*?)<\/\1>/gi)) {
+      // A newline inside a cell would break the row apart, and a literal pipe
+      // would open a phantom column.
+      const text = flattenProse(cellMatch[3]).replace(/\s+/g, ' ').replace(/\|/g, '\\|').trim();
+      const colspan = spanOf(cellMatch[2], 'colspan');
+      const rowspan = spanOf(cellMatch[2], 'rowspan');
+
+      for (let i = 0; i < colspan; i += 1) {
+        const column = row.length;
+        place(text);
+        if (rowspan > 1) carried.set(column, { text, rowsLeft: rowspan - 1 });
+      }
     }
-    if (cells.length === 0) continue;
-    rows.push(cells);
-    headerWidth = Math.max(headerWidth, cells.length);
+
+    // Anything still descending past the last written cell belongs on the end.
+    while (carried.has(row.length)) {
+      const carry = carried.get(row.length)!;
+      row.push(carry.text);
+      carry.rowsLeft -= 1;
+      if (carry.rowsLeft <= 0) carried.delete(row.length - 1);
+    }
+
+    if (row.length === 0) continue;
+    grid.push(row);
+    width = Math.max(width, row.length);
   }
 
-  if (rows.length === 0) return '';
+  if (grid.length === 0) return '';
 
   // Ragged rows are padded so every line has the same number of pipes, which
   // is what makes a markdown table render as a table at all.
-  const lines = rows.map(
-    (cells) =>
-      `| ${[...cells, ...Array(headerWidth - cells.length).fill('')].join(' | ')} |`,
+  const lines = grid.map(
+    (row) => `| ${[...row, ...Array(width - row.length).fill('')].join(' | ')} |`,
   );
-  lines.splice(1, 0, `| ${Array(headerWidth).fill('---').join(' | ')} |`);
+  lines.splice(1, 0, `| ${Array(width).fill('---').join(' | ')} |`);
   return lines.join('\n');
+}
+
+function spanOf(attributes: string, name: 'colspan' | 'rowspan'): number {
+  const match = new RegExp(`\\b${name}="(\\d+)"`, 'i').exec(attributes);
+  const value = match ? Number(match[1]) : 1;
+  return Number.isFinite(value) && value > 0 ? value : 1;
 }
 
 function decode(text: string): string {
