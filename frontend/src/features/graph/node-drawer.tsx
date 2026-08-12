@@ -48,22 +48,22 @@ export function NodeDrawer({ node, onClose, onFocus }: Props) {
   if (!node) return null;
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-40 w-80 overflow-y-auto border-l bg-background p-6 shadow-lg">
+    <aside className="fixed inset-y-0 right-0 z-40 w-80 overflow-y-auto border-l border-stroke-soft-200 bg-bg-white-0 p-6 shadow-raised">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            {isEntity ? 'Thực thể' : 'Tài liệu'}
+          <p className="text-xs uppercase tracking-wide text-text-sub-600">
+            {isEntity ? 'Entity' : 'Document'}
           </p>
           <h2 className="break-words text-lg font-semibold">{node.label}</h2>
         </div>
         <Button variant="ghost" size="sm" onClick={onClose}>
-          Đóng
+          Close
         </Button>
       </div>
 
       <div className="mt-4 space-y-3">
         <Button variant="outline" size="sm" className="w-full" onClick={() => onFocus(node.id)}>
-          Chỉ xem lân cận
+          Show neighbourhood only
         </Button>
 
         {!isEntity && (
@@ -71,31 +71,31 @@ export function NodeDrawer({ node, onClose, onFocus }: Props) {
             to={`/documents/${node.id}`}
             className="flex h-9 w-full items-center justify-center rounded-md bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            Mở tài liệu
+            Open document
           </Link>
         )}
 
         {isEntity && relations && relations.length > 0 && (
           <div className="space-y-2">
-            <p className="text-sm font-medium">Quan hệ ({relations.length})</p>
+            <p className="text-sm font-medium">Relations ({relations.length})</p>
             {relations.map((relation) => (
-              <div key={relation.id} className="rounded-md border p-2">
+              <div key={relation.id} className="rounded-md border border-stroke-soft-200 p-2">
                 <p className="text-xs">
                   <Badge variant="secondary">{relation.type}</Badge>{' '}
-                  <span className="text-muted-foreground">
+                  <span className="text-text-sub-600">
                     {relation.direction === 'out' ? '→' : '←'} {relation.otherEntityName}
                   </span>
                 </p>
                 {/* Every typed edge shows the sentence it came from, so a
                     reader can reject it without leaving the drawer. */}
-                <blockquote className="mt-1 border-l-2 pl-2 text-xs italic text-muted-foreground">
+                <blockquote className="mt-1 border-l-2 border-stroke-soft-200 pl-2 text-xs italic text-text-sub-600">
                   “{relation.evidence}”
                 </blockquote>
                 <Link
                   to={`/documents/${relation.documentId}`}
-                  className="text-xs text-primary hover:underline"
+                  className="text-xs text-primary-base hover:underline"
                 >
-                  Tài liệu nguồn
+                  Source document
                 </Link>
               </div>
             ))}
@@ -104,14 +104,14 @@ export function NodeDrawer({ node, onClose, onFocus }: Props) {
 
         {isEntity && (
           <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Xuất hiện trong {documents?.length ?? 0} tài liệu
+            <p className="text-sm text-text-sub-600">
+              Appears in {documents?.length ?? 0} document(s)
             </p>
             {documents?.map((document) => (
               <Link
                 key={document.id}
                 to={`/documents/${document.id}`}
-                className="block rounded-md border p-2 hover:bg-accent"
+                className="block rounded-md border border-stroke-soft-200 p-2 hover:bg-bg-weak-50"
               >
                 <p className="truncate text-sm font-medium">{document.title ?? document.filename}</p>
                 {document.documentType && (

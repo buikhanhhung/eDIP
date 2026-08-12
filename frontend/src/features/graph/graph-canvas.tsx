@@ -1,5 +1,8 @@
 import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
+import fcose from 'cytoscape-fcose';
 import { useEffect, useRef } from 'react';
+
+cytoscape.use(fcose);
 
 export interface GraphNode {
   data: {
@@ -53,34 +56,32 @@ export const ENTITY_COLORS: Record<string, string> = {
 
 const LABEL_BASE = {
   label: 'data(label)',
-  color: '#3d4657',
-  'font-size': 10,
-  'font-weight': 500,
   'text-valign': 'bottom' as const,
-  'text-margin-y': 7,
-  'text-max-width': '92px',
+  'text-margin-y': 6,
   'text-wrap': 'ellipsis' as const,
   'text-background-color': '#ffffff',
-  'text-background-opacity': 0.9,
+  'text-background-opacity': 0.88,
   'text-background-padding': '2px',
   'text-background-shape': 'roundrectangle' as const,
 };
 
 const STYLESHEET: cytoscape.StylesheetJson = [
   {
-    // Documents read as pages: a tall rounded card, filled softly with a firm
-    // border, so they never compete with the entity dots for attention.
+    // Documents are context, not subject: they read as pale cards with a quiet
+    // label so the eye lands on the entities that connect them.
     selector: 'node[kind="document"]',
     style: {
       ...LABEL_BASE,
       shape: 'round-rectangle',
       'background-color': '#eff6ff',
       'border-width': 1.5,
-      'border-color': '#2563eb',
-      color: '#1e3a8a',
-      'font-weight': 600,
-      width: 34,
-      height: 26,
+      'border-color': '#93b4fc',
+      color: '#64748b',
+      'font-size': 8,
+      'font-weight': 400,
+      'text-max-width': '70px',
+      width: 30,
+      height: 22,
     },
   },
   {
@@ -90,11 +91,15 @@ const STYLESHEET: cytoscape.StylesheetJson = [
       shape: 'ellipse',
       // Size follows reach: an entity tying six documents together should be
       // findable without reading a single label.
-      width: 'mapData(documentCount, 1, 9, 16, 34)',
-      height: 'mapData(documentCount, 1, 9, 16, 34)',
+      width: 'mapData(documentCount, 1, 9, 18, 40)',
+      height: 'mapData(documentCount, 1, 9, 18, 40)',
       'background-color': '#94a3b8',
-      'border-width': 2,
+      'border-width': 2.5,
       'border-color': '#ffffff',
+      color: '#1e2532',
+      'font-size': 10,
+      'font-weight': 600,
+      'text-max-width': '96px',
     },
   },
   ...Object.entries(ENTITY_COLORS).map(([type, color]) => ({
@@ -106,9 +111,9 @@ const STYLESHEET: cytoscape.StylesheetJson = [
     selector: 'edge[kind="mentions"]',
     style: {
       width: 1,
-      'line-color': '#dbe1ea',
+      'line-color': '#dfe4ec',
       'curve-style': 'bezier',
-      opacity: 0.9,
+      opacity: 0.85,
     },
   },
   {
@@ -116,13 +121,21 @@ const STYLESHEET: cytoscape.StylesheetJson = [
     // because unlike a mention edge it makes a claim.
     selector: 'edge[kind="relates"]',
     style: {
-      width: 1.8,
-      'line-color': '#7c3aed',
-      'target-arrow-color': '#7c3aed',
+      width: 1.6,
+      'line-color': '#a78bfa',
+      'target-arrow-color': '#a78bfa',
       'target-arrow-shape': 'triangle',
-      'arrow-scale': 0.9,
+      'arrow-scale': 0.85,
       'curve-style': 'bezier',
-      'control-point-step-size': 50,
+      'control-point-step-size': 60,
+    },
+  },
+  {
+    // Relation labels are the densest ink on the canvas and mostly repeat what
+    // the arrow already implies, so they wait until the reader asks for one
+    // neighbourhood by hovering it.
+    selector: 'edge[kind="relates"].highlighted',
+    style: {
       label: 'data(label)',
       'font-size': 8,
       'font-weight': 600,
@@ -132,6 +145,9 @@ const STYLESHEET: cytoscape.StylesheetJson = [
       'text-background-padding': '3px',
       'text-background-shape': 'roundrectangle',
       'text-rotation': 'autorotate',
+      'line-color': '#7c3aed',
+      'target-arrow-color': '#7c3aed',
+      width: 2.2,
     },
   },
   {
@@ -140,11 +156,34 @@ const STYLESHEET: cytoscape.StylesheetJson = [
   },
   {
     // Hovering fades everything unrelated, which is the only way a reader
-    // follows one thread through a hairball this dense.
+    // follows one thread through a graph this dense.
     selector: '.dimmed',
-    style: { opacity: 0.15, 'text-opacity': 0.1 },
+    style: { opacity: 0.12, 'text-opacity': 0.06 },
   },
 ];
+
+/**
+ * fcose rather than the built-in cose: on a graph shaped like this one — a few
+ * high-degree entities joining many documents — it settles with markedly fewer
+ * edge crossings, and it keeps disconnected clusters apart instead of packing
+ * them into the same corner.
+ */
+const LAYOUT = {
+  name: 'fcose',
+  animate: false,
+  quality: 'proof',
+  randomize: true,
+  padding: 45,
+  nodeSeparation: 130,
+  idealEdgeLength: 130,
+  nodeRepulsion: 9000,
+  gravity: 0.2,
+  gravityRange: 3.2,
+  numIter: 3500,
+  // Labels sit under their node, so the box the layout avoids has to be taller
+  // than the node itself or the text lands on a neighbour.
+  nodeDimensionsIncludeLabels: true,
+} as unknown as cytoscape.LayoutOptions;
 
 /**
  * Raw cytoscape rather than a React wrapper: the instance owns a canvas and an
@@ -165,19 +204,7 @@ export function GraphCanvas({ payload, onSelect, onFocus, onSelectEdge }: Props)
       container: container.current,
       elements,
       style: STYLESHEET,
-      layout: {
-        name: 'cose',
-        animate: false,
-        padding: 40,
-        // Spread further than the default: labels sit under the nodes, and at
-        // tighter spacing they overlap into an unreadable mat.
-        nodeRepulsion: () => 45000,
-        idealEdgeLength: () => 150,
-        nodeOverlap: 40,
-        gravity: 0.35,
-        componentSpacing: 120,
-        numIter: 1500,
-      } as cytoscape.LayoutOptions,
+      layout: LAYOUT,
       minZoom: 0.2,
       maxZoom: 3,
       wheelSensitivity: 0.2,
@@ -195,8 +222,9 @@ export function GraphCanvas({ payload, onSelect, onFocus, onSelectEdge }: Props)
     cy.on('mouseover', 'node', (event) => {
       const keep = event.target.closedNeighborhood();
       cy.elements().difference(keep).addClass('dimmed');
+      keep.addClass('highlighted');
     });
-    cy.on('mouseout', 'node', () => cy.elements().removeClass('dimmed'));
+    cy.on('mouseout', 'node', () => cy.elements().removeClass('dimmed highlighted'));
 
     cyRef.current = cy;
     return () => {
@@ -205,5 +233,7 @@ export function GraphCanvas({ payload, onSelect, onFocus, onSelectEdge }: Props)
     };
   }, [payload, onSelect, onFocus, onSelectEdge]);
 
-  return <div ref={container} className="h-[34rem] w-full rounded-lg bg-bg-white-0" />;
+  return (
+    <div ref={container} className="h-[36rem] w-full rounded-lg bg-bg-white-0" />
+  );
 }

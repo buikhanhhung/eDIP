@@ -14,12 +14,12 @@ type GraphEdgeData = GraphEdge['data'];
 const ENTITY_TYPES = ['company', 'person', 'project', 'contract', 'invoice', 'department'] as const;
 
 const TYPE_LABELS: Record<string, string> = {
-  company: 'Công ty',
-  person: 'Cá nhân',
-  project: 'Dự án',
-  contract: 'Hợp đồng',
-  invoice: 'Hoá đơn',
-  department: 'Phòng ban',
+  company: 'Company',
+  person: 'Person',
+  project: 'Project',
+  contract: 'Contract',
+  invoice: 'Invoice',
+  department: 'Department',
 };
 
 export function GraphPage() {
@@ -86,24 +86,25 @@ export function GraphPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Đồ thị tri thức</h1>
-          <p className="text-sm text-muted-foreground">
-            {visible.nodes.length} nút · {visible.edges.length} liên kết
+          <h1 className="text-2xl font-semibold tracking-tight">Knowledge graph</h1>
+          <p className="text-sm text-text-sub-600">
+            {visible.nodes.length} nodes · {visible.edges.length} links · hover a node to isolate
+            its neighbourhood, double-click to zoom into it
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-text-sub-600">
             <input
               type="checkbox"
               checked={showRelations}
               onChange={(e) => setShowRelations(e.target.checked)}
             />
-            Hiện quan hệ
+            Show relations
           </label>
 
-          <label className="flex items-center gap-2 text-sm">
-            Chia sẻ tối thiểu
+          <label className="flex items-center gap-2 text-sm text-text-sub-600">
+            Shared documents
             <input
               type="range"
               min={1}
@@ -111,11 +112,11 @@ export function GraphPage() {
               value={minShared}
               onChange={(e) => setMinShared(Number(e.target.value))}
             />
-            <span className="w-4 tabular-nums">{minShared}</span>
+            <span className="w-4 tabular-nums text-text-strong-950">{minShared}</span>
           </label>
           {focused && (
             <Button variant="outline" size="sm" onClick={() => setFocused(null)}>
-              Bỏ lọc lân cận
+              Clear focus
             </Button>
           )}
         </div>
@@ -155,19 +156,20 @@ export function GraphPage() {
         })}
         <span className="ml-1 flex items-center gap-1.5 text-xs text-text-soft-400">
           <span className="h-2.5 w-4 rounded-sm border border-primary-base bg-primary-lighter" />
-          Tài liệu
+          Document
         </span>
       </div>
 
-      {isLoading && <p className="text-sm text-muted-foreground">Đang dựng đồ thị…</p>}
-      {isError && <p className="text-sm text-destructive">Không tải được đồ thị.</p>}
+      {isLoading && <p className="text-sm text-text-sub-600">Building the graph…</p>}
+      {isError && <p className="text-sm text-danger-base">Could not load the graph.</p>}
 
       {data && (
         <Card>
           <CardContent className="p-0">
             {visible.nodes.length === 0 ? (
-              <p className="p-10 text-center text-sm text-muted-foreground">
-                Không có nút nào khớp bộ lọc. Hạ "chia sẻ tối thiểu" xuống 1 để xem toàn bộ.
+              <p className="p-10 text-center text-sm text-text-sub-600">
+                No nodes match the current filters. Lower “shared documents” to 1 to see
+                everything.
               </p>
             ) : (
               <GraphCanvas
@@ -187,25 +189,25 @@ export function GraphPage() {
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <Badge>{selectedEdge.label}</Badge>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Câu văn trong tài liệu sinh ra liên kết này:
+                <p className="mt-2 text-sm text-text-sub-600">
+                  The sentence this link was read from:
                 </p>
                 {/* The evidence is what makes a typed edge checkable rather
                     than something the reader has to take on trust. */}
-                <blockquote className="mt-1 border-l-2 pl-3 text-sm italic">
+                <blockquote className="mt-1 border-l-2 border-stroke-soft-200 pl-3 text-sm italic">
                   “{selectedEdge.evidence}”
                 </blockquote>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setSelectedEdge(null)}>
-                  Đóng
+                  Close
                 </Button>
                 {selectedEdge.documentId && (
                   <Link
                     to={`/documents/${selectedEdge.documentId}`}
-                    className="text-sm text-primary hover:underline"
+                    className="text-sm text-primary-base hover:underline"
                   >
-                    Mở tài liệu nguồn
+                    Open source document
                   </Link>
                 )}
               </div>
