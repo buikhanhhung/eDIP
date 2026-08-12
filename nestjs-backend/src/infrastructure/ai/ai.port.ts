@@ -59,7 +59,29 @@ export interface VisionImage {
   format: VisionImageFormat;
 }
 
+/**
+ * What one image yielded. The two halves are kept apart because they have
+ * different standing: `transcription` is text that exists in the document,
+ * `description` is written by the model. Anything quoting a document back to a
+ * reader needs to be able to tell them apart.
+ */
+export interface ImageReading {
+  /** Text visible in the image, verbatim. Empty when there is none. */
+  transcription: string;
+  /** What the image shows, in one or two sentences. Generated, not found. */
+  description: string;
+}
+
 export interface IVisionService {
   /** Reads text off images. All pages go in one request for shared context. */
   transcribe(images: VisionImage[]): Promise<string>;
+
+  /**
+   * Transcribes *and* describes, one entry per input image, in one request.
+   *
+   * Used where an image is the subject rather than a page of a document: a
+   * photograph with no text still has to be findable, and a diagram is worth
+   * more than the four words printed on it.
+   */
+  read(images: VisionImage[]): Promise<ImageReading[]>;
 }

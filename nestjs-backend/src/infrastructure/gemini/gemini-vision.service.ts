@@ -2,18 +2,16 @@ import type { GoogleGenAI } from '@google/genai';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvConfig } from '@config/env.config';
-import type { IVisionService, VisionImage } from '@infrastructure/ai/ai.port';
+import type { ImageReading, IVisionService, VisionImage } from '@infrastructure/ai/ai.port';
+import {
+  assertReadableImages,
+  parseReadings,
+  READ_PROMPT,
+  TRANSCRIBE_PROMPT,
+} from '@infrastructure/ai/vision-prompts';
 import { assertGeminiConfigured, createGeminiClient } from './gemini-client';
 
 const MAX_TOKENS = 4096;
-
-const TRANSCRIBE_PROMPT = [
-  'Transcribe every piece of text visible in these images, in reading order.',
-  'Preserve the original language, including Vietnamese diacritics, and keep',
-  'line breaks where the layout has them. Output the transcription only — no',
-  'commentary, no summary, no markdown fences. If an image contains no legible',
-  'text at all, output nothing for it.',
-].join(' ');
 
 @Injectable()
 export class GeminiVisionService implements IVisionService {
@@ -28,15 +26,24 @@ export class GeminiVisionService implements IVisionService {
 
   async transcribe(images: VisionImage[]): Promise<string> {
     assertGeminiConfigured(this.config, 'Reading a scanned document');
+    assertReadableImages(images, 'transcribe');
 
-    if (images.length === 0) throw new Error('No images to transcribe');
-    for (const image of images) {
-      // A zero-byte render is the signature of the pdfjs init-order bug: the
-      // page comes back blank, transcribes to nothing, and the document looks
-      // like a bad scan instead of a misconfigured renderer.
-      if (image.bytes.length === 0) throw new Error('Refusing to transcribe an empty image buffer');
-    }
+    const text = (await this.generate(images, TRANSCRIBE_PROMPT)).trim();
+    this.logger.log(`transcribed ${images.length} image(s) into ${text.length} characters`);
+    return text;
+  }
 
+  async read(images: VisionImage[]): Promise<ImageReading[]> {
+    assertGeminiConfigured(this.config, 'Reading an image');
+    assertReadableImages(images, 'read');
+
+    const readings = parseReadings(await this.generate(images, READ_PROMPT), images.length);
+    const described = readings.filter((reading) => reading.description.length > 0).length;
+    this.logger.log(`read ${images.length} image(s); ${described} described`);
+    return readings;
+  }
+
+  private async generate(images: VisionImage[], prompt: string): Promise<string> {
     const response = await this.client.models.generateContent({
       model: this.model,
       contents: [
@@ -49,15 +56,13 @@ export class GeminiVisionService implements IVisionService {
                 data: image.bytes.toString('base64'),
               },
             })),
-            { text: TRANSCRIBE_PROMPT },
+            { text: prompt },
           ],
         },
       ],
       config: { maxOutputTokens: MAX_TOKENS, temperature: 0 },
     });
 
-    const text = response.text?.trim() ?? '';
-    this.logger.log(`transcribed ${images.length} image(s) into ${text.length} characters`);
-    return text;
+    return response.text ?? '';
   }
 }

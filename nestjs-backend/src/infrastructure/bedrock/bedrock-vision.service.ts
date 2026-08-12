@@ -2,21 +2,19 @@ import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-r
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvConfig } from '@config/env.config';
-import type { IVisionService, VisionImage } from '@infrastructure/ai/ai.port';
+import type { ImageReading, IVisionService, VisionImage } from '@infrastructure/ai/ai.port';
+import {
+  assertReadableImages,
+  parseReadings,
+  READ_PROMPT,
+  TRANSCRIBE_PROMPT,
+} from '@infrastructure/ai/vision-prompts';
 import { assertBedrockConfigured, createBedrockClient } from './bedrock-client';
 
 const MAX_TOKENS = 4096;
 
-const TRANSCRIBE_PROMPT = [
-  'Transcribe every piece of text visible in these images, in reading order.',
-  'Preserve the original language, including Vietnamese diacritics, and keep',
-  'line breaks where the layout has them. Output the transcription only — no',
-  'commentary, no summary, no markdown fences. If an image contains no legible',
-  'text at all, output nothing for it.',
-].join(' ');
-
 /**
- * Reads text off images with Claude, replacing the tesseract OCR eDIP v1 used.
+ * Reads images with Claude, replacing the tesseract OCR eDIP v1 used.
  *
  * ECVBot has no vision capability to copy — its bedrock module handles text and
  * embeddings only — so this is written rather than ported.
@@ -35,15 +33,24 @@ export class BedrockVisionService implements IVisionService {
   /** All pages go in one request so the model can use surrounding context. */
   async transcribe(images: VisionImage[]): Promise<string> {
     assertBedrockConfigured(this.config, 'Reading a scanned document');
+    assertReadableImages(images, 'transcribe');
 
-    if (images.length === 0) throw new Error('No images to transcribe');
-    for (const image of images) {
-      // A zero-byte render is the signature of the pdfjs init-order bug: the
-      // page comes back blank, transcribes to nothing, and the document looks
-      // like a bad scan instead of a misconfigured renderer.
-      if (image.bytes.length === 0) throw new Error('Refusing to transcribe an empty image buffer');
-    }
+    const text = (await this.converse(images, TRANSCRIBE_PROMPT)).trim();
+    this.logger.log(`transcribed ${images.length} image(s) into ${text.length} characters`);
+    return text;
+  }
 
+  async read(images: VisionImage[]): Promise<ImageReading[]> {
+    assertBedrockConfigured(this.config, 'Reading an image');
+    assertReadableImages(images, 'read');
+
+    const readings = parseReadings(await this.converse(images, READ_PROMPT), images.length);
+    const described = readings.filter((reading) => reading.description.length > 0).length;
+    this.logger.log(`read ${images.length} image(s); ${described} described`);
+    return readings;
+  }
+
+  private async converse(images: VisionImage[], prompt: string): Promise<string> {
     const response = await this.client.send(
       new ConverseCommand({
         modelId: this.modelId,
@@ -54,7 +61,7 @@ export class BedrockVisionService implements IVisionService {
               ...images.map((image) => ({
                 image: { format: image.format, source: { bytes: new Uint8Array(image.bytes) } },
               })),
-              { text: TRANSCRIBE_PROMPT },
+              { text: prompt },
             ],
           },
         ],
@@ -62,12 +69,6 @@ export class BedrockVisionService implements IVisionService {
       }),
     );
 
-    const text = (response.output?.message?.content ?? [])
-      .map((block) => block.text ?? '')
-      .join('\n')
-      .trim();
-
-    this.logger.log(`transcribed ${images.length} image(s) into ${text.length} characters`);
-    return text;
+    return (response.output?.message?.content ?? []).map((block) => block.text ?? '').join('\n');
   }
 }
