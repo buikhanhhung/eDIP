@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { cn } from '@/lib/utils';
 
 export interface Slice {
   key: string;
@@ -12,6 +13,9 @@ interface Props {
   /** Sits in the hole: the total, and what it counts. */
   total: number;
   totalLabel: string;
+  /** Makes both the ring and the legend selectable, for a chart that drills. */
+  onSelect?: (key: string) => void;
+  selectedKey?: string | null;
 }
 
 /** Thin ring — a fat one reads as a pie and invites area comparison. */
@@ -27,8 +31,26 @@ const GAP_DEGREES = 2;
  * makes this readable rather than a colour-guessing game — and what covers the
  * three palette slots that sit below 3:1 against a white surface.
  */
-export function DonutChart({ slices, total, totalLabel }: Props) {
+export function DonutChart({
+  slices,
+  total,
+  totalLabel,
+  onSelect,
+  selectedKey,
+}: Props) {
   const [hovered, setHovered] = useState<string | null>(null);
+
+  /**
+   * A hover pushes the rest of the ring well back, because it lasts only as
+   * long as the pointer rests there. A selection persists, so it recedes far
+   * less — dimmed to a third, a standing selection makes the whole chart look
+   * washed out and invites the reader to mistake it for a paler palette.
+   */
+  const opacityFor = (key: string): number => {
+    if (hovered !== null) return hovered === key ? 1 : 0.35;
+    if (selectedKey != null) return selectedKey === key ? 1 : 0.7;
+    return 1;
+  };
   const sum = slices.reduce((running, slice) => running + slice.value, 0);
   if (sum === 0) return null;
 
@@ -53,10 +75,11 @@ export function DonutChart({ slices, total, totalLabel }: Props) {
             strokeWidth={THICKNESS}
             // Only the hovered slice keeps full weight, so the eye is led
             // rather than left to find the one it wants.
-            opacity={hovered === null || hovered === slice.key ? 1 : 0.35}
-            className="transition-default"
+            opacity={opacityFor(slice.key)}
+            className={cn('transition-default', onSelect && 'cursor-pointer')}
             onMouseEnter={() => setHovered(slice.key)}
             onMouseLeave={() => setHovered(null)}
+            onClick={onSelect && (() => onSelect(slice.key))}
           >
             <title>{`${slice.label}: ${slice.value} (${percent(slice.value, sum)})`}</title>
           </path>
@@ -82,24 +105,51 @@ export function DonutChart({ slices, total, totalLabel }: Props) {
           lets the labels truncate to nothing, leaving a colour-guessing game.
           With a floor, the legend wraps below the ring instead. */}
       <ul className="min-w-[150px] flex-1 space-y-1.5">
-        {slices.map((slice) => (
-          <li
-            key={slice.key}
-            className="flex items-center gap-2 text-sm"
-            onMouseEnter={() => setHovered(slice.key)}
-            onMouseLeave={() => setHovered(null)}
-          >
-            <span
-              className="size-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: slice.color }}
-            />
-            <span className="min-w-0 flex-1 truncate text-text-sub-600">{slice.label}</span>
-            <span className="tabular-nums text-text-strong-950">{slice.value}</span>
-            <span className="w-12 text-right tabular-nums text-text-soft-400">
-              {percent(slice.value, sum)}
-            </span>
-          </li>
-        ))}
+        {slices.map((slice) => {
+          const row = (
+            <>
+              <span
+                className="size-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: slice.color }}
+              />
+              <span className="min-w-0 flex-1 truncate text-left text-text-sub-600">
+                {slice.label}
+              </span>
+              <span className="tabular-nums text-text-strong-950">{slice.value}</span>
+              <span className="w-12 text-right tabular-nums text-text-soft-400">
+                {percent(slice.value, sum)}
+              </span>
+            </>
+          );
+
+          return (
+            <li key={slice.key}>
+              {onSelect ? (
+                <button
+                  type="button"
+                  onClick={() => onSelect(slice.key)}
+                  onMouseEnter={() => setHovered(slice.key)}
+                  onMouseLeave={() => setHovered(null)}
+                  aria-pressed={selectedKey === slice.key}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-sm transition-default hover:bg-bg-weak-50',
+                    selectedKey === slice.key && 'bg-bg-weak-50',
+                  )}
+                >
+                  {row}
+                </button>
+              ) : (
+                <div
+                  className="flex items-center gap-2 px-1.5 py-1 text-sm"
+                  onMouseEnter={() => setHovered(slice.key)}
+                  onMouseLeave={() => setHovered(null)}
+                >
+                  {row}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

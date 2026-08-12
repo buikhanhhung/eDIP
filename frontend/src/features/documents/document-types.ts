@@ -36,8 +36,6 @@ export interface OverviewStats {
     storageBytes: StatDelta;
   };
   byType: Record<string, number>;
-  /** How each document's text was obtained — native, vision, docx, and so on. */
-  byTextSource: Record<string, number>;
   /** Which door each document came through — upload, google_drive. */
   bySource: Record<string, number>;
   /** Every bucket in the window, empty ones included. */
@@ -87,6 +85,30 @@ export const TYPE_LABELS: Record<string, string> = {
   other: 'Other',
   unknown: 'Unclassified',
 };
+
+/**
+ * One colour per document type, fixed for the life of the app.
+ *
+ * Keyed by type rather than assigned in rank order: a filter that changes which
+ * type is largest must not repaint the ones that remain, and "Report" has to be
+ * the same blue in every chart on the page. The hues are the validated
+ * categorical order — worst adjacent CVD ΔE 11.5, worst normal-vision ΔE 19.2
+ * against a white surface — with the sub-3:1 slots relieved by the labelled
+ * legend that always accompanies them.
+ */
+export const TYPE_COLORS: Record<string, string> = {
+  report: '#3b82f6',
+  contract: '#f97316',
+  other: '#10b981',
+  policy: '#a855f7',
+  invoice: '#ec4899',
+  kyc: '#f59e0b',
+  unknown: '#94a3b8',
+};
+
+export function typeColor(type: string | null): string {
+  return TYPE_COLORS[type ?? 'unknown'] ?? TYPE_COLORS.unknown;
+}
 
 export const STATUS_LABELS: Record<string, string> = {
   uploaded: 'Uploaded',

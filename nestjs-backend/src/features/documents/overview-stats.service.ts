@@ -48,18 +48,16 @@ export class OverviewStatsService {
     const window = toWindow(range);
     const previous = precedingWindow(window);
 
-    const [current, prior, byType, byTextSource, bySource, series, usage, ai, tokens] =
-      await Promise.all([
-        this.totals(window),
-        this.totals(previous),
-        this.groupCount('documentType', window),
-        this.groupCount('textSource', window),
-        this.groupCount('source', window),
-        this.timeSeries(window),
-        this.usage(window),
-        this.queryInsights(window),
-        this.tokens(window),
-      ]);
+    const [current, prior, byType, bySource, series, usage, ai, tokens] = await Promise.all([
+      this.totals(window),
+      this.totals(previous),
+      this.groupCount('documentType', window),
+      this.groupCount('source', window),
+      this.timeSeries(window),
+      this.usage(window),
+      this.queryInsights(window),
+      this.tokens(window),
+    ]);
 
     return {
       range: { from: range.from, to: range.to, bucket: series.bucket },
@@ -71,7 +69,6 @@ export class OverviewStatsService {
         storageBytes: delta(current.bytes, prior.bytes),
       },
       byType,
-      byTextSource,
       bySource,
       series: series.points,
       usage,
@@ -160,13 +157,13 @@ export class OverviewStatsService {
   }
 
   /**
-   * `source` is required, so it is grouped as-is. The other two are only known
+   * `source` is required, so it is grouped as-is. `documentType` is only known
    * once a document has been analysed, and a null there means "not yet" rather
    * than a bucket — counting it would invent an "Unclassified" slice that
    * shrinks as the queue drains.
    */
   private async groupCount(
-    field: 'documentType' | 'textSource' | 'source',
+    field: 'documentType' | 'source',
     window: Window,
   ): Promise<Record<string, number>> {
     const rows = await this.prisma.document.groupBy({

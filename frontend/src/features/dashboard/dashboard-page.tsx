@@ -19,30 +19,11 @@ import { BarList } from '@/components/charts/bar-list';
 import { DonutChart, type Slice } from '@/components/charts/donut-chart';
 import { DateRangePicker, rangeFor, type DateRange } from '@/components/date-range-picker';
 import { PageHeader } from '@/components/page-header';
-import { StatTile } from '@/components/stat-tile';
+import { StatTile, TILE_TONES } from '@/components/stat-tile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiClient } from '@/lib/api-client';
-import { typeLabel, type OverviewStats } from '@/features/documents/document-types';
-
-/**
- * Validated with the data-viz palette checker against a white surface: worst
- * adjacent CVD ΔE 11.5, worst normal-vision ΔE 19.2. Three slots fall below 3:1
- * contrast, which the legend's labels and values relieve.
- *
- * The order is fixed and colour follows the document type, so filtering the
- * corpus never repaints the types that remain.
- */
-const TYPE_COLORS = ['#3b82f6', '#f97316', '#10b981', '#a855f7', '#ec4899', '#f59e0b'] as const;
-
-/** How the text was obtained, in words rather than column values. */
-const TEXT_SOURCE_LABELS: Record<string, string> = {
-  native: 'Read directly',
-  pdf_text: 'PDF text layer',
-  docx: 'Word document',
-  xlsx: 'Spreadsheet',
-  pptx: 'Presentation',
-  vision: 'Vision (scan or image)',
-};
+import { cn } from '@/lib/utils';
+import { typeColor, typeLabel, type OverviewStats } from '@/features/documents/document-types';
 
 /** Which door a document came through. */
 const SOURCE_LABELS: Record<string, string> = {
@@ -93,17 +74,15 @@ export function DashboardPage() {
 function Overview({ data, comparison }: { data: OverviewStats; comparison: string }) {
   const typeSlices: Slice[] = Object.entries(data.byType)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, TYPE_COLORS.length)
-    .map(([type, count], index) => ({
+    .map(([type, count]) => ({
       key: type,
       label: typeLabel(type),
       value: count,
-      color: TYPE_COLORS[index],
+      color: typeColor(type),
     }));
 
   const documentTotal = Object.values(data.byType).reduce((sum, count) => sum + count, 0);
 
-  const textSourceRows = labelledRows(data.byTextSource, TEXT_SOURCE_LABELS);
   const sourceRows = labelledRows(data.bySource, SOURCE_LABELS);
 
   return (
@@ -165,15 +144,16 @@ function Overview({ data, comparison }: { data: OverviewStats; comparison: strin
         </CardContent>
       </Card>
 
-      {/* Three to a row, and cards stretch to the tallest in their row. Letting
-          each card size to its own content is what left the grid ragged. */}
-      <div className="grid gap-5 lg:grid-cols-3">
-        <Card className="flex flex-col">
+      {/* Aligned at the top, ending where their content ends. Stretching each
+          card to the tallest in its row is what left pale gaps under the
+          shorter ones. */}
+      <div className="grid items-start gap-5 lg:grid-cols-2">
+        <Card>
           <CardHeader className="flex-row items-baseline justify-between pb-2">
             <CardTitle>Documents by type</CardTitle>
             <CardLink to="/library">View all</CardLink>
           </CardHeader>
-          <CardContent className="flex-1">
+          <CardContent>
             {typeSlices.length > 0 ? (
               // "classified", not "documents": a file that failed before the
               // classifier ran has no type, so this total can sit below the
@@ -187,12 +167,19 @@ function Overview({ data, comparison }: { data: OverviewStats; comparison: strin
           </CardContent>
         </Card>
 
-        <Card className="flex flex-col">
+        <MostUsedCard usage={data.usage} />
+      </div>
+
+      {/* These three carry short lists of different lengths, so they align at
+          the top and end where their content ends. Stretching them to match
+          would leave the shortest card mostly empty. */}
+      <div className="grid items-start gap-5 lg:grid-cols-3">
+        <Card>
           <CardHeader className="flex-row items-baseline justify-between pb-2">
             <CardTitle>Top data sources</CardTitle>
             <CardLink to="/sources">Manage</CardLink>
           </CardHeader>
-          <CardContent className="flex-1">
+          <CardContent>
             <BarList
               rows={sourceRows}
               showPercent
@@ -207,18 +194,6 @@ function Overview({ data, comparison }: { data: OverviewStats; comparison: strin
           </CardContent>
         </Card>
 
-        <Card className="flex flex-col">
-          <CardHeader className="pb-2">
-            <CardTitle>How the text was read</CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1">
-            <BarList rows={textSourceRows} empty="Nothing has been processed yet." />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-3">
-        <MostUsedCard usage={data.usage} />
         <TokenUsageCard tokens={data.tokens} />
         <QueryInsightsCard ai={data.ai} />
       </div>
@@ -237,34 +212,38 @@ function Overview({ data, comparison }: { data: OverviewStats; comparison: strin
 function MostUsedCard({ usage }: { usage: OverviewStats['usage'] }) {
   const [selected, setSelected] = useState<string | null>(null);
 
-  const rows = usage.byType.map((row) => ({
+  // The same ring as "Documents by type", and the same colour per type, so a
+  // reader can compare the two charts slice by slice.
+  const slices: Slice[] = usage.byType.map((row) => ({
     key: row.type,
     label: typeLabel(row.type === 'unknown' ? null : row.type),
     value: row.uses,
+    color: typeColor(row.type === 'unknown' ? null : row.type),
   }));
 
+  const totalUses = usage.byType.reduce((sum, row) => sum + row.uses, 0);
   const active = selected ?? usage.byType[0]?.type ?? null;
   const documents = usage.documents.filter(
     (document) => (document.documentType ?? 'unknown') === active,
   );
 
   return (
-    <Card className="flex flex-col">
+    <Card>
       <CardHeader className="pb-2">
         <CardTitle>Most-used document types</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 space-y-4">
-        {rows.length === 0 ? (
+      <CardContent className="space-y-4">
+        {slices.length === 0 ? (
           <p className="text-sm text-text-sub-600">
             No document was opened, downloaded or cited in this window.
           </p>
         ) : (
           <>
-            <BarList
-              rows={rows}
-              showPercent
-              layout="stacked"
-              onSelect={(key) => setSelected(key)}
+            <DonutChart
+              slices={slices}
+              total={totalUses}
+              totalLabel="uses"
+              onSelect={setSelected}
               selectedKey={active}
             />
 
@@ -305,6 +284,14 @@ function MostUsedCard({ usage }: { usage: OverviewStats['usage'] }) {
   );
 }
 
+/**
+ * Input and output are two series in one bar, so they take the first two slots
+ * of the validated categorical order rather than two steps of one hue: these
+ * are different things being counted, not more and less of the same thing.
+ */
+const IN_COLOR = '#3b82f6';
+const OUT_COLOR = '#f97316';
+
 /** What each kind of model call is for, in words rather than enum values. */
 const PURPOSE_LABELS: Record<string, string> = {
   answer: 'AI answers',
@@ -329,27 +316,42 @@ function TokenUsageCard({ tokens }: { tokens: OverviewStats['tokens'] }) {
   const rows = tokens.byPurpose.map((row) => ({
     key: row.purpose,
     label: PURPOSE_LABELS[row.purpose] ?? row.purpose,
-    value: row.inputTokens + row.outputTokens,
+    input: row.inputTokens,
+    output: row.outputTokens,
+    total: row.inputTokens + row.outputTokens,
     unmeasured: row.reportedCalls === 0,
     chars: row.inputChars,
     calls: row.calls,
   }));
 
-  const max = Math.max(...rows.map((row) => row.value), 1);
+  const max = Math.max(...rows.map((row) => row.total), 1);
 
   return (
-    <Card className="flex flex-col">
+    <Card>
       <CardHeader className="flex-row items-baseline justify-between pb-2">
         <CardTitle>Token usage</CardTitle>
         <span className="text-sm font-normal tabular-nums text-text-sub-600">
           {compact(tokens.totalInput + tokens.totalOutput)} total
         </span>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col justify-between">
+      <CardContent>
         {rows.length === 0 ? (
           <p className="text-sm text-text-sub-600">No model calls in this window.</p>
         ) : (
           <>
+            {/* Two series, so a legend is not optional — the bar segments carry
+                identity by colour alone without it. */}
+            <div className="mb-3 flex items-center gap-4 text-xs text-text-sub-600">
+              <span className="flex items-center gap-1.5">
+                <span className="size-2.5 rounded-full" style={{ backgroundColor: IN_COLOR }} />
+                Input
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="size-2.5 rounded-full" style={{ backgroundColor: OUT_COLOR }} />
+                Output
+              </span>
+            </div>
+
             <ul className="space-y-3">
               {rows.map((row) => (
                 <li key={row.key} className="space-y-1">
@@ -357,21 +359,44 @@ function TokenUsageCard({ tokens }: { tokens: OverviewStats['tokens'] }) {
                     <span className="min-w-0 flex-1 truncate text-sm text-text-sub-600">
                       {row.label}
                     </span>
-                    <span className="shrink-0 text-sm tabular-nums text-text-strong-950">
-                      {row.unmeasured ? `${compact(row.chars)} chars` : compact(row.value)}
-                    </span>
+                    {row.unmeasured ? (
+                      <span className="shrink-0 text-sm tabular-nums text-text-strong-950">
+                        {compact(row.chars)} chars
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-sm tabular-nums text-text-strong-950">
+                        {compact(row.input)} in · {compact(row.output)} out
+                      </span>
+                    )}
                   </div>
-                  {/* An unmeasured purpose gets an empty track. A filled bar
-                      would place it on the same scale as the measured ones,
-                      and a full-width one would read as the largest. */}
-                  <span className="block h-2 overflow-hidden rounded-full bg-bg-soft-200">
+
+                  {/* One bar, two segments, split where input ends. A 2px gap
+                      separates them without drawing a border.
+
+                      An unmeasured purpose gets an empty track: a filled bar
+                      would put it on the same scale as the measured ones, and a
+                      full-width one would read as the largest. */}
+                  <span className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-bg-soft-200">
                     {!row.unmeasured && (
-                      <span
-                        className="block h-full rounded-full bg-primary-base"
-                        style={{ width: `${Math.max((row.value / max) * 100, 2)}%` }}
-                      />
+                      <>
+                        <span
+                          className="block h-full rounded-full"
+                          style={{
+                            width: `${(row.input / max) * 100}%`,
+                            backgroundColor: IN_COLOR,
+                          }}
+                        />
+                        <span
+                          className="block h-full rounded-full"
+                          style={{
+                            width: `${(row.output / max) * 100}%`,
+                            backgroundColor: OUT_COLOR,
+                          }}
+                        />
+                      </>
                     )}
                   </span>
+
                   <p className="text-[11px] text-text-soft-400">
                     {row.calls} {row.calls === 1 ? 'call' : 'calls'}
                     {row.unmeasured && ' · provider reports no token counts'}
@@ -399,12 +424,25 @@ function TokenUsageCard({ tokens }: { tokens: OverviewStats['tokens'] }) {
  * always reads "1" is furniture.
  */
 function QueryInsightsCard({ ai }: { ai: OverviewStats['ai'] }) {
+  // Each row keeps its own tint, matching the stat tiles above. The colour is
+  // decoration attached to a labelled row, never the thing carrying meaning.
   const rows = [
-    { icon: Activity, label: 'Total queries', value: String(ai.totalQueries) },
-    { icon: Search, label: 'Searches', value: String(ai.searches) },
-    { icon: MessageSquare, label: 'AI questions', value: String(ai.questions) },
+    {
+      icon: Activity,
+      tone: TILE_TONES.blue,
+      label: 'Total queries',
+      value: String(ai.totalQueries),
+    },
+    { icon: Search, tone: TILE_TONES.green, label: 'Searches', value: String(ai.searches) },
+    {
+      icon: MessageSquare,
+      tone: TILE_TONES.violet,
+      label: 'AI questions',
+      value: String(ai.questions),
+    },
     {
       icon: Timer,
+      tone: TILE_TONES.amber,
       label: 'Avg. response time',
       // Null rather than zero when nothing in the window was timed — an
       // average over no samples is not a fast system.
@@ -422,7 +460,7 @@ function QueryInsightsCard({ ai }: { ai: OverviewStats['ai'] }) {
         <ul className="divide-y divide-stroke-soft-200">
           {rows.map((row) => (
             <li key={row.label} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-bg-weak-50 text-text-sub-600">
+              <span className={cn('grid size-7 shrink-0 place-items-center rounded-lg', row.tone)}>
                 <row.icon className="size-3.5" />
               </span>
               <span className="min-w-0 flex-1 truncate text-sm text-text-sub-600">{row.label}</span>
