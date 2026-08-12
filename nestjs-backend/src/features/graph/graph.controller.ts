@@ -21,14 +21,19 @@ export class GraphController {
   getGraph(
     @Query('types') types?: string,
     @Query('relationTypes') relationTypes?: string,
+    @Query('minDocuments') minDocuments?: string,
     @Query('limit') limit?: string,
   ) {
-    const parsed = Number(limit);
+    const parsedLimit = Number(limit);
+    const parsedMin = Number(minDocuments);
     return this.graph.getGraph({
       types: parseTypes(types),
       relationTypes: parseCsv(relationTypes),
+      minDocuments: Number.isFinite(parsedMin) && parsedMin > 1 ? Math.floor(parsedMin) : 1,
       limit:
-        Number.isFinite(parsed) && parsed > 0 ? Math.min(Math.floor(parsed), MAX_LIMIT) : DEFAULT_LIMIT,
+        Number.isFinite(parsedLimit) && parsedLimit > 0
+          ? Math.min(Math.floor(parsedLimit), MAX_LIMIT)
+          : DEFAULT_LIMIT,
     });
   }
 

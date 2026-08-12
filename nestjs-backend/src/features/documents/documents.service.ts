@@ -5,6 +5,7 @@ import { LocalStorageService } from '@infrastructure/storage/local-storage.servi
 import { PrismaService } from '@shared/database/prisma.service';
 import { GRAPH_STORE } from '@features/graph/graph.di-token';
 import type { IGraphStore } from '@features/graph/graph.port';
+import { toMetadataCsv } from './metadata-csv';
 
 export interface MetadataPatch {
   title?: string;
@@ -24,6 +25,9 @@ export interface ListDocumentsQuery {
   take?: number;
   skip?: number;
 }
+
+/** Beyond this an export is a data dump, and one that would not fit in memory. */
+const MAX_EXPORT_ROWS = 10_000;
 
 /** Columns safe to send to a list view — never the full extracted text. */
 const LIST_SELECT = {
@@ -51,7 +55,11 @@ export class DocumentsService {
     @Inject(GRAPH_STORE) private readonly graph: IGraphStore,
   ) {}
 
-  async list(query: ListDocumentsQuery) {
+  /**
+   * Shared by the list and the export, so a CSV holds exactly the rows the
+   * reader was looking at when they asked for it.
+   */
+  private buildWhere(query: ListDocumentsQuery): Prisma.DocumentWhereInput {
     const where: Prisma.DocumentWhereInput = {};
 
     if (query.type) where.documentType = query.type;
@@ -70,6 +78,31 @@ export class DocumentsService {
         { title: { contains: query.q, mode: 'insensitive' } },
       ];
     }
+
+    return where;
+  }
+
+  /**
+   * The filtered rows as a CSV.
+   *
+   * Capped well above any corpus this is meant for: an export is a read of the
+   * whole result set, and one that streamed a million rows into memory would
+   * take the API down rather than answer slowly.
+   */
+  async exportCsv(query: ListDocumentsQuery): Promise<string> {
+    const documents = await this.prisma.document.findMany({
+      where: this.buildWhere(query),
+      select: LIST_SELECT,
+      orderBy: { uploadedAt: 'desc' },
+      take: MAX_EXPORT_ROWS,
+    });
+
+    this.logger.log(`exported ${documents.length} document(s) as CSV`);
+    return toMetadataCsv(documents);
+  }
+
+  async list(query: ListDocumentsQuery) {
+    const where = this.buildWhere(query);
 
     const [items, total] = await Promise.all([
       this.prisma.document.findMany({

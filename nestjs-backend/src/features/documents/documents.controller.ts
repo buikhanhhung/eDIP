@@ -35,6 +35,26 @@ export class DocumentsController {
     });
   }
 
+  /**
+   * Declared before `documents/:id` so the literal wins the route match —
+   * otherwise "export" is read as a document id and every export 404s.
+   */
+  @Audit('document.export')
+  @RequirePermission('view')
+  @Get('documents/export')
+  async export(@Query() query: ListDocumentsQuery, @Res() res: Response) {
+    const csv = await this.documents.exportCsv({
+      ...query,
+      take: undefined,
+      skip: undefined,
+    });
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="edip-metadata-${stamp}.csv"`);
+    res.send(csv);
+  }
+
   @Audit('document.view')
   @RequirePermission('view')
   @Get('documents/:id')

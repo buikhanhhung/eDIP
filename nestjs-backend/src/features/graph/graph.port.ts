@@ -42,6 +42,15 @@ export interface GetGraphOptions {
   types?: readonly EntityType[];
   /** Restrict to these relationship labels. Empty or absent means all. */
   relationTypes?: readonly string[];
+  /**
+   * Minimum documents an entity must appear in to be drawn.
+   *
+   * The reach filter, and the reason there is no confidence filter: the model
+   * scores every entity and every relation 1, measured twice, so a slider on
+   * that would move without filtering anything. This one has real spread —
+   * most entities occur in a single document.
+   */
+  minDocuments: number;
   /** Cap on nodes drawn; the densest are kept. */
   limit: number;
 }

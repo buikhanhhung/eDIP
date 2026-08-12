@@ -49,17 +49,24 @@ const LAYOUT_LABELS: Record<GraphLayout, string> = {
 export function GraphPage() {
   const [types, setTypes] = useState<string[]>([...ENTITY_TYPES]);
   const [relationType, setRelationType] = useState('');
+  // Reach, not confidence: the model scores everything 1, so a confidence
+  // slider would move without filtering anything. Most entities occur in a
+  // single document, so this one actually cuts.
+  const [minDocuments, setMinDocuments] = useState(1);
   const [layout, setLayout] = useState<GraphLayout>('force');
   const [selected, setSelected] = useState<{ id: string; label: string } | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdgeData | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['graph', relationType],
+    queryKey: ['graph', relationType, minDocuments],
     queryFn: async () =>
       (
         await apiClient.get<GraphPayload>('/graph', {
-          params: relationType ? { relationTypes: relationType } : {},
+          params: {
+            ...(relationType ? { relationTypes: relationType } : {}),
+            ...(minDocuments > 1 ? { minDocuments } : {}),
+          },
         })
       ).data,
   });
@@ -136,6 +143,19 @@ export function GraphPage() {
               </option>
             ))}
           </Select>
+          <label className="flex items-center gap-2 text-sm text-text-sub-600">
+            In at least
+            <input
+              type="range"
+              min={1}
+              max={4}
+              value={minDocuments}
+              onChange={(e) => setMinDocuments(Number(e.target.value))}
+            />
+            <span className="w-16 tabular-nums text-text-strong-950">
+              {minDocuments} doc{minDocuments > 1 ? 's' : ''}
+            </span>
+          </label>
           {focused && (
             <Button variant="outline" size="sm" onClick={() => setFocused(null)}>
               Clear focus

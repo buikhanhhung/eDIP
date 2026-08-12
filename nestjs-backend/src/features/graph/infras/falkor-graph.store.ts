@@ -301,7 +301,12 @@ export class FalkorGraphStore implements IGraphStore {
    * They stay reachable from a node's detail panel instead, where a list reads
    * better than a hairball anyway.
    */
-  async getGraph({ types, relationTypes, limit }: GetGraphOptions): Promise<GraphPayload> {
+  async getGraph({
+    types,
+    relationTypes,
+    minDocuments,
+    limit,
+  }: GetGraphOptions): Promise<GraphPayload> {
     const allowed = [...((types ?? GRAPH_ENTITY_TYPES) as readonly EntityType[])];
 
     const rows = await this.falkor.query<{
@@ -399,6 +404,16 @@ export class FalkorGraphStore implements IGraphStore {
       for (const count of counts) {
         const node = nodes.get(count.entityId);
         if (node) node.data.documentCount = Number(count.docCount);
+      }
+    }
+
+    // After the counts, because that is when the filter has something to read.
+    if (minDocuments > 1) {
+      for (const [id, node] of nodes) {
+        if (node.data.documentCount < minDocuments) nodes.delete(id);
+      }
+      for (const [id, edge] of edges) {
+        if (!nodes.has(edge.data.source) || !nodes.has(edge.data.target)) edges.delete(id);
       }
     }
 

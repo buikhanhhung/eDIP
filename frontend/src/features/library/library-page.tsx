@@ -5,6 +5,8 @@ import {
   getCoreRowModel,
   useReactTable,
 } from '@tanstack/react-table';
+import { Download } from 'lucide-react';
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Badge, statusVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, extractErrorMessage } from '@/lib/api-client';
+import { exportMetadataCsv } from '@/features/documents/download-document';
 import { useAuth } from '@/features/auth/auth-context';
 import { formatDate } from '@/lib/utils';
 import {
@@ -105,6 +108,8 @@ export function LibraryPage() {
   // tiles navigate straight into one.
   const { can } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const q = searchParams.get('q') ?? '';
   const type = searchParams.get('type') ?? '';
   const status = searchParams.get('status') ?? '';
@@ -181,8 +186,39 @@ export function LibraryPage() {
               Clear filters
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={exporting || data?.total === 0}
+            onClick={async () => {
+              setExportError(null);
+              setExporting(true);
+              try {
+                // Whatever is filtered is what gets exported, so the file
+                // matches the rows on screen rather than the whole library.
+                await exportMetadataCsv({
+                  ...(q ? { q } : {}),
+                  ...(type ? { type } : {}),
+                  ...(status ? { status } : {}),
+                });
+              } catch (error) {
+                setExportError(extractErrorMessage(error, 'Could not export the metadata.'));
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
+            <Download className="mr-1.5 size-4" />
+            {exporting ? 'Exporting…' : 'Export CSV'}
+          </Button>
         </div>
       </div>
+
+      {exportError && (
+        <p className="rounded-md bg-danger-light px-3 py-2 text-sm text-danger-base">
+          {exportError}
+        </p>
+      )}
 
       <div className="overflow-hidden rounded-lg border border-stroke-soft-200 bg-bg-white-0 shadow-soft">
         {isError ? (

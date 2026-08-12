@@ -10,8 +10,25 @@ export async function downloadDocument(id: string, filename: string): Promise<vo
   const response = await apiClient.get<Blob>(`/documents/${id}/download`, {
     responseType: 'blob',
   });
+  saveBlob(response.data, filename);
+}
 
-  const url = URL.createObjectURL(response.data);
+/**
+ * The library's metadata for whatever the filters currently select, so the CSV
+ * matches what the reader was looking at when they asked for it.
+ */
+export async function exportMetadataCsv(params: Record<string, string>): Promise<void> {
+  const response = await apiClient.get<Blob>('/documents/export', {
+    params,
+    responseType: 'blob',
+  });
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  saveBlob(response.data, `edip-metadata-${stamp}.csv`);
+}
+
+function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
