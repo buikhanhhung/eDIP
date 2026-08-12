@@ -16,6 +16,11 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AreaTrend } from '@/components/charts/area-trend';
 import { DonutChart, type Slice } from '@/components/charts/donut-chart';
+import {
+  GroupedColumns,
+  type ColumnGroup,
+  type ColumnSeries,
+} from '@/components/charts/grouped-columns';
 import { DateRangePicker, rangeFor, type DateRange } from '@/components/date-range-picker';
 import { PageHeader } from '@/components/page-header';
 import { StatTile, TILE_TONES } from '@/components/stat-tile';
@@ -343,16 +348,23 @@ function TopSourcesCard({ rows }: { rows: { key: string; label: string; value: n
  * of the validated categorical order rather than two steps of one hue: these
  * are different things being counted, not more and less of the same thing.
  */
-const IN_COLOR = '#3b82f6';
-const OUT_COLOR = '#f97316';
+const TOKEN_SERIES: ColumnSeries[] = [
+  { label: 'Input', color: '#3b82f6' },
+  { label: 'Output', color: '#f97316' },
+];
 
-/** What each kind of model call is for, in words rather than enum values. */
-const PURPOSE_LABELS: Record<string, string> = {
-  answer: 'AI answers',
-  analysis: 'Document analysis',
-  entities: 'Entity extraction',
-  vision: 'Vision (scans, images)',
-  embedding: 'Embeddings',
+/**
+ * What each kind of model call is for, in words rather than enum values.
+ *
+ * The short form is for the column axis, where five labels share the width of
+ * one card; the full one names the group in its tooltip.
+ */
+const PURPOSE_LABELS: Record<string, { full: string; short: string }> = {
+  answer: { full: 'AI answers', short: 'Answers' },
+  analysis: { full: 'Document analysis', short: 'Analysis' },
+  entities: { full: 'Entity extraction', short: 'Entities' },
+  vision: { full: 'Vision (scans, images)', short: 'Vision' },
+  embedding: { full: 'Embeddings', short: 'Embed' },
 };
 
 /**
@@ -367,18 +379,21 @@ const PURPOSE_LABELS: Record<string, string> = {
  * would read as a free one.
  */
 function TokenUsageCard({ tokens }: { tokens: OverviewStats['tokens'] }) {
-  const rows = tokens.byPurpose.map((row) => ({
-    key: row.purpose,
-    label: PURPOSE_LABELS[row.purpose] ?? row.purpose,
-    input: row.inputTokens,
-    output: row.outputTokens,
-    total: row.inputTokens + row.outputTokens,
-    unmeasured: row.reportedCalls === 0,
-    chars: row.inputChars,
-    calls: row.calls,
-  }));
+  const naming = (purpose: string) =>
+    PURPOSE_LABELS[purpose] ?? { full: purpose, short: purpose };
 
-  const max = Math.max(...rows.map((row) => row.total), 1);
+  // Only purposes the provider actually measured can be drawn: a pair of
+  // zero-height columns would read as a job that cost nothing, when the truth
+  // is that nobody counted.
+  const measured = tokens.byPurpose.filter((row) => row.reportedCalls > 0);
+  const unmeasured = tokens.byPurpose.filter((row) => row.reportedCalls === 0);
+
+  const groups: ColumnGroup[] = measured.map((row) => ({
+    key: row.purpose,
+    label: naming(row.purpose).short,
+    title: naming(row.purpose).full,
+    values: [row.inputTokens, row.outputTokens],
+  }));
 
   return (
     <Card>
@@ -389,77 +404,47 @@ function TokenUsageCard({ tokens }: { tokens: OverviewStats['tokens'] }) {
         </span>
       </CardHeader>
       <CardContent>
-        {rows.length === 0 ? (
+        {tokens.byPurpose.length === 0 ? (
           <p className="text-sm text-text-sub-600">No model calls in this window.</p>
         ) : (
           <>
-            {/* Two series, so a legend is not optional — the bar segments carry
+            {/* Two series, so a legend is not optional — the columns carry
                 identity by colour alone without it. */}
-            <div className="mb-3 flex items-center gap-4 text-xs text-text-sub-600">
-              <span className="flex items-center gap-1.5">
-                <span className="size-2.5 rounded-full" style={{ backgroundColor: IN_COLOR }} />
-                Input
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="size-2.5 rounded-full" style={{ backgroundColor: OUT_COLOR }} />
-                Output
-              </span>
+            <div className="mb-2 flex items-center gap-4 text-xs text-text-sub-600">
+              {TOKEN_SERIES.map((entry) => (
+                <span key={entry.label} className="flex items-center gap-1.5">
+                  <span
+                    className="size-2.5 rounded-full"
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  {entry.label}
+                </span>
+              ))}
             </div>
 
-            <ul className="space-y-3">
-              {rows.map((row) => (
-                <li key={row.key} className="space-y-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm text-text-sub-600">
-                      {row.label}
-                    </span>
-                    {row.unmeasured ? (
-                      <span className="shrink-0 text-sm tabular-nums text-text-strong-950">
-                        {compact(row.chars)} chars
-                      </span>
-                    ) : (
-                      <span className="shrink-0 text-sm tabular-nums text-text-strong-950">
-                        {compact(row.input)} in · {compact(row.output)} out
-                      </span>
-                    )}
-                  </div>
+            <GroupedColumns
+              groups={groups}
+              series={TOKEN_SERIES}
+              format={compact}
+              unit="tokens"
+            />
 
-                  {/* One bar, two segments, split where input ends. A 2px gap
-                      separates them without drawing a border.
+            {unmeasured.length > 0 && (
+              <p className="mt-3 text-xs text-text-soft-400">
+                Not charted:{' '}
+                {unmeasured
+                  .map(
+                    (row) =>
+                      `${naming(row.purpose).full} (${row.calls} ${
+                        row.calls === 1 ? 'call' : 'calls'
+                      }, ${compact(row.inputChars)} chars)`,
+                  )
+                  .join(', ')}
+                {' — the provider reports no token counts for these.'}
+              </p>
+            )}
 
-                      An unmeasured purpose gets an empty track: a filled bar
-                      would put it on the same scale as the measured ones, and a
-                      full-width one would read as the largest. */}
-                  <span className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-bg-soft-200">
-                    {!row.unmeasured && (
-                      <>
-                        <span
-                          className="block h-full rounded-full"
-                          style={{
-                            width: `${(row.input / max) * 100}%`,
-                            backgroundColor: IN_COLOR,
-                          }}
-                        />
-                        <span
-                          className="block h-full rounded-full"
-                          style={{
-                            width: `${(row.output / max) * 100}%`,
-                            backgroundColor: OUT_COLOR,
-                          }}
-                        />
-                      </>
-                    )}
-                  </span>
-
-                  <p className="text-[11px] text-text-soft-400">
-                    {row.calls} {row.calls === 1 ? 'call' : 'calls'}
-                    {row.unmeasured && ' · provider reports no token counts'}
-                  </p>
-                </li>
-              ))}
-            </ul>
-
-            <p className="mt-4 border-t border-stroke-soft-200 pt-3 text-xs text-text-soft-400">
+            <p className="mt-3 border-t border-stroke-soft-200 pt-3 text-xs text-text-soft-400">
               {compact(tokens.totalInput)} in · {compact(tokens.totalOutput)} out across{' '}
               {tokens.calls} {tokens.calls === 1 ? 'call' : 'calls'}
               {tokens.unreportedCalls > 0 && `, ${tokens.unreportedCalls} unmeasured`}
