@@ -283,14 +283,24 @@ export class DocumentsService {
    * split eDIP v1 used.
    */
   async stats() {
-    const [total, byStatusRaw, byTypeRaw] = await Promise.all([
+    const [total, size, byStatusRaw, byTypeRaw, bySourceRaw, daily, activity] = await Promise.all([
       this.prisma.document.count(),
+      this.prisma.document.aggregate({ _sum: { sizeBytes: true } }),
       this.prisma.document.groupBy({ by: ['status'], _count: { _all: true } }),
       this.prisma.document.groupBy({
         by: ['documentType'],
         _count: { _all: true },
         where: { documentType: { not: null } },
       }),
+      // How the text was obtained, which is the one breakdown that says
+      // something about the pipeline rather than about the corpus.
+      this.prisma.document.groupBy({
+        by: ['textSource'],
+        _count: { _all: true },
+        where: { textSource: { not: null } },
+      }),
+      this.dailyIngest(),
+      this.activityCounts(),
     ]);
 
     const toMap = <T extends string>(rows: { _count: { _all: number } }[], keys: (T | null)[]) =>
@@ -300,8 +310,53 @@ export class DocumentsService {
 
     return {
       total,
+      totalBytes: size._sum.sizeBytes ?? 0,
       byStatus: toMap(byStatusRaw, byStatusRaw.map((r) => r.status)),
       byType: toMap(byTypeRaw, byTypeRaw.map((r) => r.documentType)),
+      bySource: toMap(bySourceRaw, bySourceRaw.map((r) => r.textSource)),
+      daily,
+      activity,
+    };
+  }
+
+  /**
+   * Documents ingested per day for the last month.
+   *
+   * Only days that actually have documents are returned — the client decides
+   * whether that is enough of a spread to be worth drawing as a trend. A
+   * corpus loaded in one afternoon is a single point, and a thirty-day axis
+   * around it says nothing.
+   */
+  private async dailyIngest() {
+    return this.prisma.$queryRaw<{ date: string; uploaded: bigint; failed: bigint }[]>`
+      SELECT to_char(date_trunc('day', "uploadedAt"), 'YYYY-MM-DD') AS date,
+             COUNT(*) AS uploaded,
+             COUNT(*) FILTER (WHERE status = 'failed') AS failed
+      FROM "Document"
+      WHERE "uploadedAt" >= NOW() - INTERVAL '30 days'
+      GROUP BY 1
+      ORDER BY 1
+    `.then((rows) =>
+      rows.map((row) => ({
+        date: row.date,
+        uploaded: Number(row.uploaded),
+        failed: Number(row.failed),
+      })),
+    );
+  }
+
+  /** What people have done with the corpus, straight off the audit trail. */
+  private async activityCounts() {
+    const [byAction, actors] = await Promise.all([
+      this.prisma.auditLog.groupBy({ by: ['action'], _count: { _all: true } }),
+      this.prisma.auditLog.findMany({ distinct: ['actorId'], select: { actorId: true } }),
+    ]);
+
+    return {
+      byAction: Object.fromEntries(
+        byAction.map((row) => [row.action, row._count._all]),
+      ) as Record<string, number>,
+      activeUsers: actors.length,
     };
   }
 }

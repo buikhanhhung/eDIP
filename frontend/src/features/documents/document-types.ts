@@ -20,8 +20,14 @@ export interface DocumentListResponse {
 
 export interface DocumentStats {
   total: number;
+  totalBytes: number;
   byStatus: Record<string, number>;
   byType: Record<string, number>;
+  /** How each document's text was obtained — native, vision, docx, and so on. */
+  bySource: Record<string, number>;
+  /** Only days that have documents; absent days are absent, not zeroed. */
+  daily: { date: string; uploaded: number; failed: number }[];
+  activity: { byAction: Record<string, number>; activeUsers: number };
 }
 
 /** Display labels for the document types the classifier produces. */
