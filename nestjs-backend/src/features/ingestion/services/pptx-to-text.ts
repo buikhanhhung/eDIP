@@ -1,4 +1,6 @@
 import JSZip from 'jszip';
+import type { VisionImage } from '@infrastructure/ai/ai.port';
+import { type SectionedText, toVisionImage } from './embedded-images';
 
 /**
  * Reads a deck: one section per slide, in slide order, with its table content
@@ -11,7 +13,9 @@ import JSZip from 'jszip';
  * exceljs the right answer for a workbook.
  *
  * Notes are kept because a deck usually carries its argument there; the slide
- * itself is often five words and a picture.
+ * itself is often five words and a picture — which is also why the pictures
+ * are collected, resolved through each slide's relationship part so a diagram
+ * is described on the slide it appears on.
  */
 
 interface Slide {
@@ -19,12 +23,7 @@ interface Slide {
   path: string;
 }
 
-export interface DeckText {
-  text: string;
-  slideCount: number;
-}
-
-export async function pptxToText(buffer: Buffer): Promise<DeckText> {
+export async function pptxToText(buffer: Buffer): Promise<SectionedText> {
   const zip = await JSZip.loadAsync(buffer);
 
   const slides: Slide[] = Object.keys(zip.files)
@@ -35,6 +34,7 @@ export async function pptxToText(buffer: Buffer): Promise<DeckText> {
     .sort((a, b) => a.number - b.number);
 
   const sections: string[] = [];
+  const imagesBySection: VisionImage[][] = [];
 
   for (const slide of slides) {
     const xml = await zip.file(slide.path)?.async('string');
@@ -42,15 +42,55 @@ export async function pptxToText(buffer: Buffer): Promise<DeckText> {
 
     const parts = [`## Slide ${slide.number}`, slideBody(xml)];
 
-    const notesXml = await zip.file(`ppt/notesSlides/notesSlide${slide.number}.xml`)?.async('string');
+    const notesXml = await zip
+      .file(`ppt/notesSlides/notesSlide${slide.number}.xml`)
+      ?.async('string');
     const notes = notesXml ? textRuns(notesXml).join('\n') : '';
     if (notes.trim().length > 0) parts.push(`Speaker notes: ${notes.trim()}`);
 
     const body = parts.filter((part) => part.trim().length > 0).join('\n\n');
-    if (body.trim().length > 0) sections.push(body);
+    const images = await imagesOn(zip, slide.number);
+
+    // A slide that is nothing but a picture still earns a section, or its
+    // description would have nowhere to go.
+    if (body.trim().length === 0 && images.length === 0) continue;
+    sections.push(body.trim().length > 0 ? body : `## Slide ${slide.number}`);
+    imagesBySection.push(images);
   }
 
-  return { text: sections.join('\n\n'), slideCount: slides.length };
+  return { sections, imagesBySection };
+}
+
+/**
+ * The pictures on one slide.
+ *
+ * A slide names its images by relationship id, and those ids are resolved in a
+ * sibling `_rels` part — the media folder alone cannot say which slide a
+ * picture belongs to, so reading the relationships is what keeps a diagram
+ * with its own slide.
+ */
+async function imagesOn(zip: JSZip, slideNumber: number): Promise<VisionImage[]> {
+  const rels = await zip.file(`ppt/slides/_rels/slide${slideNumber}.xml.rels`)?.async('string');
+  if (!rels) return [];
+
+  const images: VisionImage[] = [];
+  const seen = new Set<string>();
+
+  for (const match of rels.matchAll(/Target="([^"]+)"/g)) {
+    const target = match[1];
+    if (!target.includes('/media/') || seen.has(target)) continue;
+    seen.add(target);
+
+    const path = target.replace(/^\.\.\//, 'ppt/');
+    const bytes = await zip.file(path)?.async('nodebuffer');
+    if (!bytes) continue;
+
+    const extension = (path.split('.').pop() ?? '').toLowerCase();
+    const image = toVisionImage(`image/${extension === 'jpg' ? 'jpeg' : extension}`, bytes);
+    if (image) images.push(image);
+  }
+
+  return images;
 }
 
 /** Tables first pulled out, so their cells do not land in the prose. */

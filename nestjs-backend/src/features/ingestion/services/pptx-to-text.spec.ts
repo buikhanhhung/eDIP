@@ -1,6 +1,12 @@
 import JSZip from 'jszip';
 import { pptxToText } from './pptx-to-text';
 
+/** The reader returns sections so pictures can be attached; tests read them joined. */
+const read = async (buffer: Buffer) => {
+  const result = await pptxToText(buffer);
+  return { ...result, text: result.sections.join('\n\n') };
+};
+
 const NS =
   'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
   'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
@@ -29,9 +35,9 @@ describe('pptxToText', () => {
       'ppt/slides/slide10.xml': slideXml(paragraphs('Slide mười')),
     });
 
-    const { text, slideCount } = await pptxToText(buffer);
+    const { text, sections } = await read(buffer);
 
-    expect(slideCount).toBe(3);
+    expect(sections).toHaveLength(3);
     expect(text.indexOf('Slide một')).toBeLessThan(text.indexOf('Slide hai'));
     expect(text.indexOf('Slide hai')).toBeLessThan(text.indexOf('Slide mười'));
   });
@@ -47,7 +53,7 @@ describe('pptxToText', () => {
       ),
     });
 
-    const { text } = await pptxToText(buffer);
+    const { text } = await read(buffer);
 
     expect(text).toContain('Chi phí triển khai');
   });
@@ -64,7 +70,7 @@ describe('pptxToText', () => {
       ),
     });
 
-    const { text } = await pptxToText(buffer);
+    const { text } = await read(buffer);
 
     expect(text).toContain('| Hạng mục | Thành tiền |');
     expect(text).toContain('| Triển khai | 120tr |');
@@ -81,7 +87,7 @@ describe('pptxToText', () => {
       ),
     });
 
-    const { text } = await pptxToText(buffer);
+    const { text } = await read(buffer);
 
     expect(text.match(/ô bảng/g)).toHaveLength(1);
   });
@@ -94,9 +100,32 @@ describe('pptxToText', () => {
       )}</p:spTree></p:cSld></p:notes>`,
     });
 
-    const { text } = await pptxToText(buffer);
+    const { text } = await read(buffer);
 
     expect(text).toContain('Speaker notes: Nhấn mạnh phần mã hoá.');
+  });
+
+  it('puts a picture on the slide that references it, not the first slide', async () => {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mP8z8BQz0AEYBxVSF+FAP5FDvcfRYWgAAAAAElFTkSuQmCC',
+      'base64',
+    );
+    const buffer = await deck({
+      'ppt/slides/slide1.xml': slideXml(paragraphs('Không hình')),
+      'ppt/slides/slide2.xml': slideXml(
+        paragraphs('Sơ đồ') + '<p:pic><p:blipFill><a:blip r:embed="rId2"/></p:blipFill></p:pic>',
+      ),
+      'ppt/slides/_rels/slide2.xml.rels':
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/>' +
+        '</Relationships>',
+      'ppt/media/image1.png': png.toString('binary'),
+    });
+
+    const { imagesBySection } = await pptxToText(buffer);
+
+    expect(imagesBySection[0]).toHaveLength(0);
+    expect(imagesBySection[1]).toHaveLength(1);
   });
 
   it('decodes entities', async () => {
@@ -104,13 +133,13 @@ describe('pptxToText', () => {
       'ppt/slides/slide1.xml': slideXml(paragraphs('Bên A &amp; Bên B')),
     });
 
-    expect((await pptxToText(buffer)).text).toContain('Bên A & Bên B');
+    expect((await read(buffer)).text).toContain('Bên A & Bên B');
   });
 
   it('returns nothing for a deck with no slides', async () => {
     expect(await pptxToText(await deck({ 'docProps/app.xml': '<x/>' }))).toEqual({
-      text: '',
-      slideCount: 0,
+      sections: [],
+      imagesBySection: [],
     });
   });
 });

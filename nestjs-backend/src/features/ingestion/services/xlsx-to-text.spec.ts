@@ -1,6 +1,12 @@
 import ExcelJS from 'exceljs';
 import { MAX_ROWS_PER_SHEET, xlsxToText } from './xlsx-to-text';
 
+/** The reader returns sections so pictures can be attached; tests read them joined. */
+const read = async (buffer: Buffer) => {
+  const result = await xlsxToText(buffer);
+  return { ...result, text: result.sections.join('\n\n') };
+};
+
 async function workbook(build: (wb: ExcelJS.Workbook) => void): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   build(wb);
@@ -15,7 +21,7 @@ describe('xlsxToText', () => {
       sheet.addRow(['Phí triển khai', '120.000.000 VNĐ']);
     });
 
-    const { text } = await xlsxToText(buffer);
+    const { text } = await read(buffer);
 
     expect(text).toContain('## Bảng giá');
     expect(text).toContain('| Hạng mục | Thành tiền |');
@@ -29,7 +35,7 @@ describe('xlsxToText', () => {
       sheet.addRow([12, 3000000, { formula: 'A2*B2', result: 36000000 }]);
     });
 
-    const { text } = await xlsxToText(buffer);
+    const { text } = await read(buffer);
 
     expect(text).toContain('36000000');
     expect(text).not.toContain('A2*B2');
@@ -43,7 +49,7 @@ describe('xlsxToText', () => {
       sheet.getCell('A2').value = 'Tổng cộng';
     });
 
-    const { text } = await xlsxToText(buffer);
+    const { text } = await read(buffer);
 
     expect(text).toContain('| Tổng cộng | Tổng cộng | Tổng cộng |');
   });
@@ -55,7 +61,7 @@ describe('xlsxToText', () => {
       sheet.addRow(['Thanh toán theo quý.']);
     });
 
-    const { text } = await xlsxToText(buffer);
+    const { text } = await read(buffer);
 
     expect(text).toContain('Hợp đồng ký ngày 15/03/2026.\nThanh toán theo quý.');
     expect(text).not.toContain('| ---');
@@ -67,7 +73,7 @@ describe('xlsxToText', () => {
       wb.addWorksheet('Hai').addRow(['p', 'q']);
     });
 
-    const { text } = await xlsxToText(buffer);
+    const { text } = await read(buffer);
 
     expect(text).toContain('## Một');
     expect(text).toContain('## Hai');
@@ -80,7 +86,7 @@ describe('xlsxToText', () => {
       for (let i = 0; i < MAX_ROWS_PER_SHEET + 50; i += 1) sheet.addRow([`GD-${i}`, i]);
     });
 
-    const { text, warning } = await xlsxToText(buffer);
+    const { text, warning } = await read(buffer);
 
     expect(text).toContain(`Only the first ${MAX_ROWS_PER_SHEET}`);
     expect(warning).toContain('Giao dịch');
@@ -90,6 +96,27 @@ describe('xlsxToText', () => {
     );
   });
 
+  it('keeps a sheet picture with the sheet it was drawn on', async () => {
+    const png =
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mP8z8BQz0AEYBxVSF+FAP5FDvcfRYWgAAAAAElFTkSuQmCC';
+    const buffer = await workbook((wb) => {
+      wb.addWorksheet('Không hình').addRow(['a', 'b']);
+      const withImage = wb.addWorksheet('Có hình');
+      withImage.addRow(['a', 'b']);
+      withImage.addImage(wb.addImage({ base64: png, extension: 'png' }), {
+        tl: { col: 0, row: 3 },
+        ext: { width: 100, height: 60 },
+      });
+    });
+
+    const { sections, imagesBySection } = await xlsxToText(buffer);
+
+    expect(sections).toHaveLength(2);
+    expect(imagesBySection[0]).toHaveLength(0);
+    expect(imagesBySection[1]).toHaveLength(1);
+    expect(imagesBySection[1][0].format).toBe('png');
+  });
+
   it('escapes a pipe inside a cell', async () => {
     const buffer = await workbook((wb) => {
       const sheet = wb.addWorksheet('S');
@@ -97,6 +124,6 @@ describe('xlsxToText', () => {
       sheet.addRow(['d', 'e']);
     });
 
-    expect((await xlsxToText(buffer)).text).toContain('a\\|b');
+    expect((await read(buffer)).text).toContain('a\\|b');
   });
 });

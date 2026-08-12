@@ -10,6 +10,7 @@ import {
   batch,
   extractPdfImages,
   renderReading,
+  type SectionedText,
   toVisionImage,
   unreadableImageNote,
 } from './embedded-images';
@@ -145,20 +146,56 @@ export class TextExtractionService {
    * and a formula carries the value it last computed.
    */
   private async extractWorkbook(buffer: Buffer): Promise<ExtractionResult> {
-    const { text, warning } = await xlsxToText(buffer);
+    const read = await xlsxToText(buffer);
+    const text = await this.joinSections(read, 'xlsx');
     if (text.trim().length === 0) throw new Error('This workbook has no readable cells');
 
-    if (warning) this.logger.warn(`xlsx: ${warning}`);
-    return { text, textSource: 'xlsx', warning };
+    if (read.warning) this.logger.warn(`xlsx: ${read.warning}`);
+    return { text, textSource: 'xlsx', warning: read.warning };
   }
 
-  /** One section per slide, with its tables and its speaker notes. */
+  /** One section per slide, with its tables, pictures and speaker notes. */
   private async extractDeck(buffer: Buffer): Promise<ExtractionResult> {
-    const { text, slideCount } = await pptxToText(buffer);
+    const read = await pptxToText(buffer);
+    const text = await this.joinSections(read, 'pptx');
     if (text.trim().length === 0) throw new Error('This presentation has no readable text');
 
-    this.logger.log(`pptx: read ${slideCount} slide(s)`);
     return { text, textSource: 'pptx' };
+  }
+
+  /**
+   * Reads every picture in the document and puts each one under the section it
+   * belongs to — a sheet in a workbook, a slide in a deck.
+   *
+   * One pass over the whole document, so a deck of twenty slides with one
+   * picture each costs five requests rather than twenty. A failure here loses
+   * the pictures, not the document: the text is already assembled.
+   */
+  private async joinSections(read: SectionedText, label: string): Promise<string> {
+    const flat = read.imagesBySection.flat();
+    if (flat.length === 0) return read.sections.join('\n\n');
+
+    let readings: ImageReading[];
+    try {
+      readings = await this.readAll(flat);
+    } catch (error) {
+      this.logger.warn(`${label}: could not read embedded images: ${(error as Error).message}`);
+      return read.sections.join('\n\n');
+    }
+
+    let taken = 0;
+    const sections = read.sections.map((section, index) => {
+      const count = read.imagesBySection[index]?.length ?? 0;
+      const rendered = readings
+        .slice(taken, taken + count)
+        .map(renderReading)
+        .filter(Boolean);
+      taken += count;
+      return rendered.length > 0 ? `${section}\n\n${rendered.join('\n\n')}` : section;
+    });
+
+    this.logger.log(`${label}: read ${flat.length} embedded image(s)`);
+    return sections.join('\n\n');
   }
 
   private async extractPdf(buffer: Buffer): Promise<ExtractionResult> {

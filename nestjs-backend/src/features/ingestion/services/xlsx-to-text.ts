@@ -1,4 +1,6 @@
 import ExcelJS from 'exceljs';
+import type { VisionImage } from '@infrastructure/ai/ai.port';
+import { type SectionedText, toVisionImage } from './embedded-images';
 
 /**
  * Turns a workbook into markdown tables, one per sheet.
@@ -17,17 +19,13 @@ import ExcelJS from 'exceljs';
 /** Rows kept per sheet. Beyond this a sheet is data, not a document. */
 export const MAX_ROWS_PER_SHEET = 2000;
 
-export interface WorkbookText {
-  text: string;
-  /** Set when at least one sheet was cut, for the document's warning. */
-  warning?: string;
-}
-
-export async function xlsxToText(buffer: Buffer): Promise<WorkbookText> {
+export async function xlsxToText(buffer: Buffer): Promise<SectionedText> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(toArrayBuffer(buffer));
 
+  const media = workbook.model.media as unknown as MediaEntry[];
   const sections: string[] = [];
+  const imagesBySection: VisionImage[][] = [];
   const truncated: string[] = [];
 
   for (const sheet of workbook.worksheets) {
@@ -70,15 +68,45 @@ export async function xlsxToText(buffer: Buffer): Promise<WorkbookText> {
     if (cut) truncated.push(sheet.name);
 
     sections.push(`## ${sheet.name}\n\n${body}${note}`);
+    imagesBySection.push(imagesOn(sheet, media));
   }
 
   return {
-    text: sections.join('\n\n'),
+    sections,
+    imagesBySection,
     warning:
       truncated.length > 0
         ? `Sheets cut at ${MAX_ROWS_PER_SHEET} rows: ${truncated.join(', ')}.`
         : undefined,
   };
+}
+
+/** What exceljs keeps in `workbook.model.media`, which its types omit. */
+interface MediaEntry {
+  type: string;
+  extension?: string;
+  buffer?: Buffer;
+}
+
+/**
+ * The pictures anchored to one sheet.
+ *
+ * `getImages` returns an index into the workbook's shared media pool rather
+ * than the bytes, so the two have to be joined — which is also what keeps a
+ * chart with the sheet it was drawn on.
+ */
+function imagesOn(sheet: ExcelJS.Worksheet, media: MediaEntry[]): VisionImage[] {
+  const images: VisionImage[] = [];
+
+  for (const placement of sheet.getImages()) {
+    const entry = media[Number(placement.imageId)];
+    if (!entry?.buffer || entry.type !== 'image') continue;
+
+    const image = toVisionImage(`image/${entry.extension ?? ''}`, entry.buffer);
+    if (image) images.push(image);
+  }
+
+  return images;
 }
 
 /**

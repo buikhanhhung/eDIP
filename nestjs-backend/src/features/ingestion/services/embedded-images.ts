@@ -99,6 +99,21 @@ function toRgba(
   return rgba;
 }
 
+/**
+ * A document read as a list of sections, each with the pictures that belong to
+ * it — a sheet in a workbook, a slide in a deck.
+ *
+ * Section is the anchor these formats offer. Neither a spreadsheet nor a deck
+ * places a picture inside the flow of a sentence the way a Word document does,
+ * so a description sits at the foot of the sheet or slide it was found on.
+ */
+export interface SectionedText {
+  sections: string[];
+  /** Same length as `sections`; entry `i` holds section `i`'s pictures. */
+  imagesBySection: VisionImage[][];
+  warning?: string;
+}
+
 /** Splits into request-sized groups, so one call covers several images. */
 export function batch<T>(items: T[], size = VISION_BATCH_SIZE): T[][] {
   const batches: T[][] = [];
