@@ -1,12 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { TextSource } from '@prisma/client';
 import mammoth from 'mammoth';
-import { extractText, renderPageAsImage } from 'unpdf';
+import { extractText, extractTextItems, getDocumentProxy, renderPageAsImage } from 'unpdf';
 import { VISION_SERVICE } from '@infrastructure/ai/ai.di-token';
 import type { ImageReading, IVisionService, VisionImage } from '@infrastructure/ai/ai.port';
 import { allowedTypeFor, extensionOf, rejectionMessage } from '@infrastructure/storage/allowlist';
 import { docxHtmlToText } from './docx-html-to-text';
 import { batch, extractPdfImages, renderReading, toVisionImage } from './embedded-images';
+import { pageItemsToText, TABULAR_PAGE_COVERAGE, type TextItem } from './pdf-tables';
 import { ensurePdfjs } from './pdfjs-init';
 
 export interface ExtractionResult {
@@ -155,7 +156,7 @@ export class TextExtractionService {
     buffer: Buffer,
     pageTexts: string[],
   ): Promise<ExtractionResult> {
-    const text = pageTexts.join('\n\n');
+    const text = (await this.rebuildTables(buffer, pageTexts)) ?? pageTexts.join('\n\n');
 
     let images: VisionImage[] = [];
     try {
@@ -190,6 +191,48 @@ export class TextExtractionService {
       throw new Error('Vision could not read or describe this image');
     }
     return { text, textSource: 'vision' };
+  }
+
+  /**
+   * Re-reads the page from positioned text items so grids come back as
+   * markdown tables. `extractText` keeps rows but joins cells with spaces,
+   * which leaves no way to tell an item's name from the figure beside it.
+   *
+   * Returns null rather than throwing: this is a better rendering of text the
+   * caller already has, so a PDF whose item stream will not read should fall
+   * back to that text, not fail.
+   */
+  private async rebuildTables(buffer: Buffer, pageTexts: string[]): Promise<string | null> {
+    try {
+      // A document proxy, not the raw bytes: handing `extractTextItems` a
+      // Uint8Array makes pdfjs structured-clone its own worker port and throw.
+      const proxy = await getDocumentProxy(new Uint8Array(buffer));
+      const { items } = await extractTextItems(proxy);
+
+      // Page by page, and only where the page really is a table. pdfjs
+      // recovers reading order across a multi-panel layout; sweeping the item
+      // stream top to bottom reads straight across those panels and
+      // interleaves them. So the rebuilt page is taken only when the grid is
+      // most of what is on it, and prose keeps the renderer that gets it right.
+      let rebuilt = 0;
+      const pages = items.map((page, index) => {
+        const parsed = pageItemsToText(page as TextItem[]);
+        if (parsed.tablesFound > 0 && parsed.tableCoverage >= TABULAR_PAGE_COVERAGE) {
+          rebuilt += 1;
+          return parsed.text;
+        }
+        return pageTexts[index] ?? parsed.text;
+      });
+
+      if (rebuilt === 0) return null;
+
+      const text = pages.filter((page) => page.trim().length > 0).join('\n\n');
+      this.logger.log(`pdf: rebuilt tables on ${rebuilt} of ${pages.length} page(s)`);
+      return text.trim().length > 0 ? text : null;
+    } catch (error) {
+      this.logger.warn(`could not rebuild tables from item positions: ${(error as Error).message}`);
+      return null;
+    }
   }
 
   /** Several images per request, so image count costs batches, not calls. */
