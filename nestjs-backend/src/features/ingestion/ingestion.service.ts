@@ -1,6 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type { Queue } from 'bullmq';
+import { decodeMultipartFilename } from '@common/text/decode-multipart-filename';
 import { allowedTypeFor, rejectionMessage } from '@infrastructure/storage/allowlist';
 import { LocalStorageService } from '@infrastructure/storage/local-storage.service';
 import { PrismaService } from '@shared/database/prisma.service';
@@ -24,16 +25,18 @@ export class IngestionService {
   ) {}
 
   async upload(file: UploadedFile, ownerId: string) {
+    const filename = decodeMultipartFilename(file.originalname);
+
     // Extension decides the type. `file.mimetype` is the client's
     // Content-Type header and is never consulted.
-    const allowed = allowedTypeFor(file.originalname);
-    if (!allowed) throw new BadRequestException(rejectionMessage(file.originalname));
+    const allowed = allowedTypeFor(filename);
+    if (!allowed) throw new BadRequestException(rejectionMessage(filename));
 
-    const storagePath = await this.storage.save(file.buffer, file.originalname);
+    const storagePath = await this.storage.save(file.buffer, filename);
 
     const document = await this.prisma.document.create({
       data: {
-        filename: file.originalname,
+        filename,
         mimeType: allowed.mime,
         sizeBytes: file.size,
         storagePath,
@@ -44,7 +47,7 @@ export class IngestionService {
     });
 
     await this.queue.add(INGEST_JOB, { documentId: document.id }, INGEST_JOB_OPTIONS);
-    this.logger.log(`queued ingest for ${document.id} (${file.originalname})`);
+    this.logger.log(`queued ingest for ${document.id} (${filename})`);
 
     return document;
   }
