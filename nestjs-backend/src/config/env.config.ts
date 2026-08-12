@@ -72,6 +72,14 @@ export const envSchema = z.object({
   /** Where the web app is served from. Only consulted in production. */
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
 
+  // Connectors. Optional so the app still boots without them — the Sources
+  // page then says the connector is not configured instead of the API
+  // failing to start over a feature nobody has set up yet.
+  ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, 'must be 64 hex characters').optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().default('http://localhost:3000/connectors/google/callback'),
+
   SEED_ADMIN_EMAIL: z.string().email().default('admin@ecloudvalley.demo'),
   SEED_USER_EMAIL: z.string().email().default('user@ecloudvalley.demo'),
   SEED_VIEWER_EMAIL: z.string().email().default('viewer@ecloudvalley.demo'),

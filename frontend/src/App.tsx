@@ -10,6 +10,7 @@ import { DocumentDetailPage } from '@/features/documents/document-detail-page';
 import { GraphPage } from '@/features/graph/graph-page';
 import { LibraryPage } from '@/features/library/library-page';
 import { SearchPage } from '@/features/search/search-page';
+import { SourcesPage } from '@/features/connectors/sources-page';
 import { UploadPage } from '@/features/upload/upload-page';
 
 const queryClient = new QueryClient({
@@ -37,6 +38,14 @@ export default function App() {
                 element={
                   <ProtectedRoute permission="upload">
                     <UploadPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/sources"
+                element={
+                  <ProtectedRoute permission="upload">
+                    <SourcesPage />
                   </ProtectedRoute>
                 }
               />

@@ -14,6 +14,7 @@ import { AuditModule } from '@features/audit/audit.module';
 import { AuthModule } from '@features/auth/auth.module';
 import { DocumentsModule } from '@features/documents/documents.module';
 import { GraphModule } from '@features/graph/graph.module';
+import { ConnectorsModule } from '@features/connectors/connectors.module';
 import { IngestionModule } from '@features/ingestion/ingestion.module';
 import { SearchModule } from '@features/search/search.module';
 import { QueueModule } from '@shared/queue/queue.module';
@@ -52,6 +53,7 @@ import { SharedModule } from '@shared/shared.module';
     AuthModule,
     DocumentsModule,
     IngestionModule,
+    ConnectorsModule,
     SearchModule,
     AskModule,
     GraphModule,

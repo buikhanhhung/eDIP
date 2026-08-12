@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import {
+  Cloud,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -41,6 +42,7 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
     heading: 'Manage',
     items: [
       { to: '/upload', label: 'Upload', icon: Upload, permission: 'upload' },
+      { to: '/sources', label: 'Sources', icon: Cloud, permission: 'upload' },
       { to: '/audit', label: 'Activity log', icon: ScrollText, permission: 'audit' },
     ],
   },
