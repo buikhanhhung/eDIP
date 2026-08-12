@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Badge, statusVariant } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { statusLabel } from '@/features/documents/document-types';
 
 /**
@@ -16,7 +17,17 @@ const ACCEPTED =
   '.txt,.md,.markdown,.csv,.json,.log,.xml,.html,.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp';
 
 const POLL_INTERVAL_MS = 1500;
-const TERMINAL = ['completed', 'failed'];
+/**
+ * `duplicate` never comes from the API — the row is closed the moment the
+ * upload is refused, so it must not be polled for a status it will never have.
+ */
+const TERMINAL = ['completed', 'failed', 'duplicate'];
+
+interface PreviousVersion {
+  id: string;
+  filename: string;
+  uploadedAt: string;
+}
 
 interface TrackedUpload {
   id: string;
@@ -24,6 +35,10 @@ interface TrackedUpload {
   status: string;
   error: string | null;
   documentType: string | null;
+  /** The document this file duplicates, when the upload was refused. */
+  duplicateOf?: { id: string; filename: string } | null;
+  /** Earlier files with the same name but different content. */
+  previousVersions?: PreviousVersion[];
 }
 
 export function UploadPage() {
@@ -79,16 +94,43 @@ export function UploadPage() {
       const form = new FormData();
       form.append('file', file);
       try {
-        const { data } = await apiClient.post<{ id: string; filename: string; status: string }>(
-          '/documents',
-          form,
-        );
+        const { data } = await apiClient.post<{
+          id: string;
+          filename: string;
+          status: string;
+          previousVersions: PreviousVersion[];
+        }>('/documents', form);
         setTracked((current) => [
-          { id: data.id, filename: data.filename, status: data.status, error: null, documentType: null },
+          {
+            id: data.id,
+            filename: data.filename,
+            status: data.status,
+            error: null,
+            documentType: null,
+            previousVersions: data.previousVersions,
+          },
           ...current,
         ]);
       } catch (err) {
-        setError(extractErrorMessage(err, `Could not upload ${file.name}.`));
+        // A refusal gets its own row rather than one shared error line: in a
+        // batch of twenty, the reader needs to know *which* file was refused.
+        const conflict = axios.isAxiosError(err) && err.response?.status === 409;
+        const duplicateOf = conflict
+          ? ((err.response?.data as { duplicateOf?: { id: string; filename: string } })
+              ?.duplicateOf ?? null)
+          : null;
+
+        setTracked((current) => [
+          {
+            id: `rejected-${file.name}-${Date.now()}`,
+            filename: file.name,
+            status: conflict ? 'duplicate' : 'failed',
+            error: extractErrorMessage(err, `Could not upload ${file.name}.`),
+            documentType: null,
+            duplicateOf,
+          },
+          ...current,
+        ]);
       }
     }
 
@@ -146,20 +188,67 @@ export function UploadPage() {
       {tracked.length > 0 && (
         <Card>
           <CardContent className="divide-y divide-stroke-soft-200 pt-6">
-            {tracked.map((item) => (
-              <div key={item.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                <Link to={`/documents/${item.id}`} className="min-w-0 flex-1 truncate font-medium hover:underline">
-                  {item.filename}
-                </Link>
-                {item.documentType && <Badge variant="secondary">{item.documentType}</Badge>}
-                <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
-                {item.error && (
-                  <span className="max-w-sm truncate text-xs text-danger-base" title={item.error}>
-                    {item.error}
-                  </span>
-                )}
-              </div>
-            ))}
+            {tracked.map((item) => {
+              const refused = item.status === 'duplicate';
+              return (
+                <div key={item.id} className="space-y-1 py-3 first:pt-0 last:pb-0">
+                  <div className="flex items-center gap-3">
+                    {/* A refused file has no document to open. */}
+                    {refused ? (
+                      <span className="min-w-0 flex-1 truncate font-medium text-text-sub-600">
+                        {item.filename}
+                      </span>
+                    ) : (
+                      <Link
+                        to={`/documents/${item.id}`}
+                        className="min-w-0 flex-1 truncate font-medium hover:underline"
+                      >
+                        {item.filename}
+                      </Link>
+                    )}
+                    {item.documentType && <Badge variant="secondary">{item.documentType}</Badge>}
+                    <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
+                    {item.error && !refused && (
+                      <span className="max-w-sm truncate text-xs text-danger-base" title={item.error}>
+                        {item.error}
+                      </span>
+                    )}
+                  </div>
+
+                  {refused && item.duplicateOf && (
+                    <p className="text-xs text-text-sub-600">
+                      Identical to{' '}
+                      <Link
+                        to={`/documents/${item.duplicateOf.id}`}
+                        className="text-primary-base hover:underline"
+                      >
+                        {item.duplicateOf.filename}
+                      </Link>
+                      , already in the library — nothing was uploaded.
+                    </p>
+                  )}
+
+                  {/* Same name, different content: a revision, not a repeat. */}
+                  {!refused && item.previousVersions && item.previousVersions.length > 0 && (
+                    <p className="text-xs text-text-sub-600">
+                      {item.previousVersions.length} earlier file
+                      {item.previousVersions.length > 1 ? 's' : ''} share this name:{' '}
+                      {item.previousVersions.map((version, index) => (
+                        <span key={version.id}>
+                          {index > 0 && ', '}
+                          <Link
+                            to={`/documents/${version.id}`}
+                            className="text-primary-base hover:underline"
+                          >
+                            {formatDate(version.uploadedAt)}
+                          </Link>
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}

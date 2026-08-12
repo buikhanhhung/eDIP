@@ -40,6 +40,7 @@ export const STATUS_LABELS: Record<string, string> = {
   processing: 'Processing',
   completed: 'Completed',
   failed: 'Failed',
+  duplicate: 'Duplicate',
 };
 
 export function typeLabel(type: string | null): string {

@@ -20,7 +20,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "reset:corpus": "ts-node -r tsconfig-paths/register scripts/reset-corpus.ts",
-    "ingest:dir": "ts-node -r tsconfig-paths/register scripts/ingest-directory.ts"
+    "ingest:dir": "ts-node -r tsconfig-paths/register scripts/ingest-directory.ts",
+    "backfill:hashes": "ts-node -r tsconfig-paths/register scripts/backfill-content-hashes.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1107.0",
