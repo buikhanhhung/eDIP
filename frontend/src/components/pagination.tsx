@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Select } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -30,7 +31,7 @@ export function Pagination({ page, perPage, total, onPage, onPerPage, unit }: Pr
   const last = Math.min(page * perPage, total);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stroke-soft-200 px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stroke-soft-200 px-5 py-3">
       <p className="text-sm text-text-sub-600">
         {total === 0
           ? `No ${unit}`
@@ -74,18 +75,18 @@ export function Pagination({ page, perPage, total, onPage, onPerPage, unit }: Pr
         </PageButton>
       </div>
 
-      <select
+      <Select
+        className="w-36"
         value={perPage}
         onChange={(event) => onPerPage(Number(event.target.value))}
         aria-label={`${unit} per page`}
-        className="rounded-lg border border-stroke-soft-200 bg-bg-white-0 px-2.5 py-1.5 text-sm text-text-sub-600 transition-default hover:bg-bg-weak-50"
       >
         {PER_PAGE_CHOICES.map((choice) => (
           <option key={choice} value={choice}>
             {choice} per page
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   );
 }

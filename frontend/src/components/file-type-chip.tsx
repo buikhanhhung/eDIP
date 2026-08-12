@@ -19,8 +19,10 @@ const PALETTE: Record<string, string> = {
   jpg: '#8b5cf6',
   jpeg: '#8b5cf6',
   webp: '#8b5cf6',
-  md: '#64748b',
-  markdown: '#64748b',
+  // Markdown is prose, so it takes the same blue as the other document
+  // formats; the label on the page says which one it is.
+  md: '#3b82f6',
+  markdown: '#3b82f6',
   txt: '#64748b',
   json: '#f59e0b',
   xml: '#f59e0b',
