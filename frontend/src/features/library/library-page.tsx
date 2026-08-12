@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { FileTypeChip } from '@/components/file-type-chip';
 import { PageHeader } from '@/components/page-header';
+import { Pagination, PER_PAGE_CHOICES } from '@/components/pagination';
 import { StatusPill } from '@/components/status-pill';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -118,16 +119,35 @@ export function LibraryPage() {
   const q = searchParams.get('q') ?? '';
   const type = searchParams.get('type') ?? '';
   const status = searchParams.get('status') ?? '';
+  const page = Math.max(Number(searchParams.get('page')) || 1, 1);
+  const perPage = PER_PAGE_CHOICES.includes(
+    Number(searchParams.get('perPage')) as (typeof PER_PAGE_CHOICES)[number],
+  )
+    ? Number(searchParams.get('perPage'))
+    : PER_PAGE_CHOICES[0];
 
+  /**
+   * Narrowing the result set sends the reader back to the first page. Staying
+   * on page three of a list that now has one page shows an empty table and
+   * looks like the filter matched nothing.
+   */
   function setFilter(key: string, value: string) {
     const next = new URLSearchParams(searchParams);
     if (value) next.set(key, value);
     else next.delete(key);
+    next.delete('page');
+    setSearchParams(next, { replace: true });
+  }
+
+  function setPageParam(key: 'page' | 'perPage', value: number) {
+    const next = new URLSearchParams(searchParams);
+    next.set(key, String(value));
+    if (key === 'perPage') next.delete('page');
     setSearchParams(next, { replace: true });
   }
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['documents', { q, type, status }],
+    queryKey: ['documents', { q, type, status, page, perPage }],
     queryFn: async () =>
       (
         await apiClient.get<DocumentListResponse>('/documents', {
@@ -135,6 +155,8 @@ export function LibraryPage() {
             ...(q ? { q } : {}),
             ...(type ? { type } : {}),
             ...(status ? { status } : {}),
+            take: perPage,
+            skip: (page - 1) * perPage,
           },
         })
       ).data,
@@ -281,6 +303,17 @@ export function LibraryPage() {
               )}
             </TableBody>
           </Table>
+        )}
+
+        {data && data.total > 0 && (
+          <Pagination
+            page={page}
+            perPage={perPage}
+            total={data.total}
+            onPage={(next) => setPageParam('page', next)}
+            onPerPage={(next) => setPageParam('perPage', next)}
+            unit="documents"
+          />
         )}
       </div>
     </div>
