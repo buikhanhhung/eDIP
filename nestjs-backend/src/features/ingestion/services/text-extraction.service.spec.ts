@@ -25,7 +25,8 @@ class FakeVision implements IVisionService {
   }
 }
 
-const FIXTURE = path.join(__dirname, '__fixtures__', 'contract-with-table.docx');
+const fixture = (name: string) => path.join(__dirname, '__fixtures__', name);
+const FIXTURE = fixture('contract-with-table.docx');
 
 describe('TextExtractionService — docx', () => {
   it('keeps a table as a markdown table instead of running the cells together', async () => {
@@ -78,6 +79,14 @@ describe('TextExtractionService — docx', () => {
     expect(vision.readCalls[0][0].format).toBe('png');
   });
 });
+
+/**
+ * The PDF branch is absent here on purpose. pdf.js reaches for `import.meta`,
+ * which Jest's CommonJS transform refuses, so nothing that touches unpdf can
+ * run in this suite. The pure table logic is covered in `pdf-tables.spec.ts`;
+ * the library integration around it — coordinate reads and embedded image
+ * decoding — was checked by hand against generated PDFs.
+ */
 
 describe('TextExtractionService — standalone image', () => {
   it('keeps an image findable through its description when it carries no text', async () => {
