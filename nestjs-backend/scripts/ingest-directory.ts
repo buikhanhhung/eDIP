@@ -64,9 +64,18 @@ async function main() {
 
     for (const document of queued) {
       if (done.has(document.id)) continue;
-      const response = await fetch(`${API}/documents/${document.id}/status`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+
+      // The jobs live in Redis, so they outlive the API process — and in watch
+      // mode it restarts whenever a file is touched. A refused connection means
+      // "ask again shortly", not "give up on a run that is still going".
+      let response: Response;
+      try {
+        response = await fetch(`${API}/documents/${document.id}/status`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      } catch {
+        break;
+      }
       if (!response.ok) continue;
       const status = (await response.json()) as { status: string; error: string | null };
       if (!TERMINAL.has(status.status)) continue;
