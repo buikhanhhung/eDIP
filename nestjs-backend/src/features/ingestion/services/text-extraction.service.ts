@@ -165,31 +165,49 @@ export class TextExtractionService {
 
   /**
    * The text layer carries the words but not the pictures, so the embedded
-   * images are read separately and appended. They cannot be placed inline —
-   * the text layer gives no anchor to place them against.
+   * images are read separately and joined back on.
+   *
+   * They land at the foot of their own page rather than inline. The PDF gives
+   * no finer anchor than that — a page's text and its images arrive as two
+   * separate lists, and the image list carries no coordinates — but page is
+   * near enough that a picture stays with the text it belongs to instead of
+   * drifting to the end of a thirty-page report.
    */
   private async extractBornDigitalPdf(
     buffer: Buffer,
     pageTexts: string[],
   ): Promise<ExtractionResult> {
-    const text = (await this.rebuildTables(buffer, pageTexts)) ?? pageTexts.join('\n\n');
+    const pages = (await this.rebuildTables(buffer, pageTexts)) ?? pageTexts;
 
-    let images: VisionImage[] = [];
+    let imagesByPage: VisionImage[][] = [];
     try {
-      images = await extractPdfImages(buffer, pageTexts.length);
+      imagesByPage = await extractPdfImages(buffer, pageTexts.length);
     } catch (error) {
       // A picture that will not decode is not worth losing the document over.
       this.logger.warn(`could not extract embedded images: ${(error as Error).message}`);
     }
-    if (images.length === 0) return { text, textSource: 'pdf_text' };
 
-    const rendered = (await this.readAll(images)).map(renderReading).filter(Boolean);
-    this.logger.log(`pdf: read ${images.length} embedded image(s)`);
+    const flat = imagesByPage.flat();
+    if (flat.length === 0) {
+      return { text: joinPages(pages), textSource: 'pdf_text' };
+    }
 
-    return {
-      text: rendered.length > 0 ? `${text}\n\n${rendered.join('\n\n')}` : text,
-      textSource: 'pdf_text',
-    };
+    // One pass over every image in the document, so the batches stay full even
+    // when the pictures are spread a page apart.
+    const readings = await this.readAll(flat);
+    let taken = 0;
+    const withImages = pages.map((page, index) => {
+      const count = imagesByPage[index]?.length ?? 0;
+      const rendered = readings
+        .slice(taken, taken + count)
+        .map(renderReading)
+        .filter(Boolean);
+      taken += count;
+      return rendered.length > 0 ? `${page}\n\n${rendered.join('\n\n')}` : page;
+    });
+
+    this.logger.log(`pdf: read ${flat.length} embedded image(s) across ${pages.length} page(s)`);
+    return { text: joinPages(withImages), textSource: 'pdf_text' };
   }
 
   /**
@@ -218,7 +236,7 @@ export class TextExtractionService {
    * caller already has, so a PDF whose item stream will not read should fall
    * back to that text, not fail.
    */
-  private async rebuildTables(buffer: Buffer, pageTexts: string[]): Promise<string | null> {
+  private async rebuildTables(buffer: Buffer, pageTexts: string[]): Promise<string[] | null> {
     try {
       // A document proxy, not the raw bytes: handing `extractTextItems` a
       // Uint8Array makes pdfjs structured-clone its own worker port and throw.
@@ -242,9 +260,8 @@ export class TextExtractionService {
 
       if (rebuilt === 0) return null;
 
-      const text = pages.filter((page) => page.trim().length > 0).join('\n\n');
       this.logger.log(`pdf: rebuilt tables on ${rebuilt} of ${pages.length} page(s)`);
-      return text.trim().length > 0 ? text : null;
+      return pages;
     } catch (error) {
       this.logger.warn(`could not rebuild tables from item positions: ${(error as Error).message}`);
       return null;
@@ -290,4 +307,9 @@ export class TextExtractionService {
     }
     return images;
   }
+}
+
+/** Blank-line separated, and pages that read empty are left out entirely. */
+function joinPages(pages: string[]): string {
+  return pages.filter((page) => page.trim().length > 0).join('\n\n');
 }

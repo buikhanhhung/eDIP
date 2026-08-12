@@ -35,23 +35,29 @@ export function toVisionImage(contentType: string, bytes: Buffer): VisionImage |
 }
 
 /**
- * Pulls every embedded image out of a PDF, page by page.
+ * Pulls every embedded image out of a PDF, grouped by the page it sits on.
  *
  * unpdf hands back raw pixel planes rather than an encoded file, so each one is
  * painted onto a canvas and encoded as PNG before it can be sent anywhere. A
  * page that throws is skipped rather than failing the document: an unreadable
  * XObject is a missing picture, not a broken PDF.
+ *
+ * The grouping is what lets a picture's description land beside its own page.
+ * It carries no finer position than that — `ExtractedImageObject` has width,
+ * height and channels but no coordinates — so page is as close as this gets.
  */
-export async function extractPdfImages(buffer: Buffer, pages: number): Promise<VisionImage[]> {
+export async function extractPdfImages(buffer: Buffer, pages: number): Promise<VisionImage[][]> {
   await ensurePdfjs();
   const { createCanvas, ImageData } = await import('@napi-rs/canvas');
-  const images: VisionImage[] = [];
+  const byPage: VisionImage[][] = [];
 
   for (let page = 1; page <= pages; page += 1) {
+    const onThisPage: VisionImage[] = [];
     let extracted: Awaited<ReturnType<typeof extractImages>>;
     try {
       extracted = await extractImages(new Uint8Array(buffer), page);
     } catch {
+      byPage.push(onThisPage);
       continue;
     }
 
@@ -62,11 +68,12 @@ export async function extractPdfImages(buffer: Buffer, pages: number): Promise<V
       const canvas = createCanvas(image.width, image.height);
       canvas.getContext('2d').putImageData(new ImageData(rgba, image.width, image.height), 0, 0);
       const png = await canvas.encode('png');
-      if (png.length > 0) images.push({ bytes: Buffer.from(png), format: 'png' });
+      if (png.length > 0) onThisPage.push({ bytes: Buffer.from(png), format: 'png' });
     }
+    byPage.push(onThisPage);
   }
 
-  return images;
+  return byPage;
 }
 
 /** Canvas takes RGBA only, so greyscale and RGB planes are widened to it. */
