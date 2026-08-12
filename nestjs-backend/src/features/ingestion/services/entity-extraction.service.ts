@@ -87,6 +87,9 @@ export class EntityExtractionService {
           mentionText: entity.name,
           charStart: charStart >= 0 ? charStart : null,
           charEnd: charStart >= 0 ? charStart + entity.name.length : null,
+          // Null when the second pass named something the first did not, which
+          // is honest: no pass scored it.
+          confidence: verified.confidenceByName.get(normalizeEntityName(entity.name)) ?? null,
         });
 
         resolved.set(normalizeEntityName(entity.name), entityId);
@@ -185,7 +188,17 @@ export class EntityExtractionService {
       `${label}: ${ner.data.entities.length} → ${verified.data.entities.length} entities, ` +
         `${verified.data.relationships.length} relations`,
     );
-    return verified.data;
+
+    // The score belongs to the first pass — it answers "is this really an
+    // entity", which is the question that pass asked. The second pass rewrites
+    // the list to verify it and to draw relations, and its schema carries no
+    // score, so returning only that result threw every one of them away.
+    return {
+      ...verified.data,
+      confidenceByName: new Map(
+        ner.data.entities.map((entity) => [normalizeEntityName(entity.name), entity.confidence]),
+      ),
+    };
   }
 
   /**
