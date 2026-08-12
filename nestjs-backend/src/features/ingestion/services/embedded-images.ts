@@ -8,6 +8,18 @@ export const VISION_BATCH_SIZE = 4;
 /** Marks generated text so nothing quoting a document mistakes it for source. */
 export const DESCRIPTION_PREFIX = '[Image description]';
 
+/**
+ * Left where a picture was that no vision model can be shown.
+ *
+ * Word stores pasted charts, Visio drawings and equations as EMF or WMF, which
+ * no provider accepts. Dropping them would put the document back in the state
+ * this work set out to fix: content gone with nothing to say it was ever
+ * there. A reader who sees this knows to open the original.
+ */
+export function unreadableImageNote(contentType: string): string {
+  return `[Image not read: unsupported format ${contentType}]`;
+}
+
 const SUPPORTED_CONTENT_TYPES: Record<string, VisionImageFormat> = {
   'image/png': 'png',
   'image/jpeg': 'jpeg',

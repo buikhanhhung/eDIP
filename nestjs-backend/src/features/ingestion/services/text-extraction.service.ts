@@ -6,7 +6,13 @@ import { VISION_SERVICE } from '@infrastructure/ai/ai.di-token';
 import type { ImageReading, IVisionService, VisionImage } from '@infrastructure/ai/ai.port';
 import { allowedTypeFor, extensionOf, rejectionMessage } from '@infrastructure/storage/allowlist';
 import { docxHtmlToText } from './docx-html-to-text';
-import { batch, extractPdfImages, renderReading, toVisionImage } from './embedded-images';
+import {
+  batch,
+  extractPdfImages,
+  renderReading,
+  toVisionImage,
+  unreadableImageNote,
+} from './embedded-images';
 import { pageItemsToText, TABULAR_PAGE_COVERAGE, type TextItem } from './pdf-tables';
 import { ensurePdfjs } from './pdfjs-init';
 
@@ -70,18 +76,21 @@ export class TextExtractionService {
    * `convertToMarkdown` has no table branch in its writer either.
    */
   private async extractDocx(buffer: Buffer): Promise<ExtractionResult> {
-    const collected: { marker: string; image: VisionImage }[] = [];
+    // `image` is null for a format no provider takes; the entry is still kept
+    // so the picture leaves a mark rather than vanishing.
+    const collected: { marker: string; image: VisionImage | null; contentType: string }[] = [];
 
     const { value: html } = await mammoth.convertToHtml(
       { buffer },
       {
         convertImage: mammoth.images.imgElement(async (image) => {
           const bytes = await image.readAsBuffer();
-          const vision = toVisionImage(image.contentType, bytes);
-          if (!vision) return { src: '' };
-
           const marker = `__EDIP_IMAGE_${collected.length}__`;
-          collected.push({ marker, image: vision });
+          collected.push({
+            marker,
+            image: toVisionImage(image.contentType, bytes),
+            contentType: image.contentType,
+          });
           return { src: '', alt: marker };
         }),
       },
@@ -90,14 +99,17 @@ export class TextExtractionService {
     const value = docxHtmlToText(html);
     if (collected.length === 0) return { text: value, textSource: 'docx' };
 
-    const readings = await this.readAll(collected.map((entry) => entry.image));
+    const readable = collected.filter((entry) => entry.image !== null);
+    const readings = await this.readAll(readable.map((entry) => entry.image as VisionImage));
+    const byMarker = new Map(readable.map((entry, index) => [entry.marker, readings[index]]));
 
-    // Substituting on the bare marker rather than the surrounding markdown
-    // keeps this working whichever way the writer chose to render the image.
+    // Substituting on the bare marker rather than the surrounding markup keeps
+    // this working whichever way the writer chose to render the image.
     let text = value;
     const orphans: string[] = [];
-    for (const [index, entry] of collected.entries()) {
-      const rendered = renderReading(readings[index]);
+    for (const entry of collected) {
+      const reading = byMarker.get(entry.marker);
+      const rendered = reading ? renderReading(reading) : unreadableImageNote(entry.contentType);
       if (text.includes(entry.marker)) {
         text = text.replaceAll(entry.marker, rendered);
       } else if (rendered.length > 0) {
@@ -106,7 +118,11 @@ export class TextExtractionService {
     }
     if (orphans.length > 0) text = `${text}\n\n${orphans.join('\n\n')}`;
 
-    this.logger.log(`docx: read ${collected.length} embedded image(s)`);
+    const skipped = collected.length - readable.length;
+    this.logger.log(
+      `docx: read ${readable.length} embedded image(s)` +
+        (skipped > 0 ? `, noted ${skipped} in a format vision cannot take` : ''),
+    );
     return { text, textSource: 'docx' };
   }
 
