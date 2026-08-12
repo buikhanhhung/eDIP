@@ -16,6 +16,12 @@ interface Props {
   /** Makes both the ring and the legend selectable, for a chart that drills. */
   onSelect?: (key: string) => void;
   selectedKey?: string | null;
+  /**
+   * Names the legend's three columns: what the slices are, what is being
+   * counted, and the share. Given per chart because the middle column counts
+   * something different each time — documents in one, uses in another.
+   */
+  columns?: [string, string, string];
 }
 
 /** Thin ring — a fat one reads as a pie and invites area comparison. */
@@ -37,6 +43,7 @@ export function DonutChart({
   totalLabel,
   onSelect,
   selectedKey,
+  columns,
 }: Props) {
   const [hovered, setHovered] = useState<string | null>(null);
 
@@ -103,8 +110,20 @@ export function DonutChart({
 
           A minimum width rather than `min-w-0`: in a narrow card the latter
           lets the labels truncate to nothing, leaving a colour-guessing game.
-          With a floor, the legend wraps below the ring instead. */}
-      <ul className="min-w-[150px] flex-1 space-y-1.5">
+          With a floor, the legend wraps below the ring instead — and named
+          columns need a wider floor than bare values do, since "Percentage" is
+          twice the width of "38.1%". */}
+      <ul className={cn('flex-1 space-y-1.5', columns ? 'min-w-[250px]' : 'min-w-[150px]')}>
+        {columns && (
+          // Aligned with the row below by matching its padding and column
+          // widths — a header that does not sit over its column is decoration.
+          <li className="flex items-center gap-2 px-1.5 pb-0.5 text-subheading-xs uppercase text-text-soft-400">
+            <span className="size-2.5 shrink-0" aria-hidden />
+            <span className="min-w-0 flex-1 truncate">{columns[0]}</span>
+            <span className="w-16 shrink-0 text-right">{columns[1]}</span>
+            <span className="w-20 shrink-0 text-right">{columns[2]}</span>
+          </li>
+        )}
         {slices.map((slice) => {
           const row = (
             <>
@@ -115,8 +134,10 @@ export function DonutChart({
               <span className="min-w-0 flex-1 truncate text-left text-text-sub-600">
                 {slice.label}
               </span>
-              <span className="tabular-nums text-text-strong-950">{slice.value}</span>
-              <span className="w-12 text-right tabular-nums text-text-soft-400">
+              <span className="w-16 shrink-0 text-right tabular-nums text-text-strong-950">
+                {slice.value}
+              </span>
+              <span className="w-20 shrink-0 text-right tabular-nums text-text-soft-400">
                 {percent(slice.value, sum)}
               </span>
             </>

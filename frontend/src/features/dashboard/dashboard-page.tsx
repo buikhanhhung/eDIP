@@ -12,7 +12,7 @@ import {
   Search,
   Timer,
 } from 'lucide-react';
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AreaTrend } from '@/components/charts/area-trend';
 import { DonutChart, type Slice } from '@/components/charts/donut-chart';
@@ -157,7 +157,12 @@ function Overview({ data, comparison }: { data: OverviewStats; comparison: strin
               // "classified", not "documents": a file that failed before the
               // classifier ran has no type, so this total can sit below the
               // one in the tile above without either being wrong.
-              <DonutChart slices={typeSlices} total={documentTotal} totalLabel="classified" />
+              <DonutChart
+                slices={typeSlices}
+                total={documentTotal}
+                totalLabel="classified"
+                columns={['Type', 'Documents', 'Percentage']}
+              />
             ) : (
               <p className="text-sm text-text-sub-600">
                 No documents were classified in this window.
@@ -223,6 +228,9 @@ function MostUsedCard({ usage }: { usage: OverviewStats['usage'] }) {
               slices={slices}
               total={totalUses}
               totalLabel="uses"
+              // "Uses", not "Documents": this ring counts how often each type
+              // was opened, downloaded or cited, not how many of them exist.
+              columns={['Type', 'Uses', 'Percentage']}
               onSelect={setSelected}
               selectedKey={active}
             />
@@ -276,7 +284,7 @@ const SOURCE_COLORS: Record<string, string> = {
   google_drive: '#10b981',
 };
 
-/** Where the corpus came in from, as a named-column table. */
+/** Where the corpus came in from, ranked. */
 function TopSourcesCard({ rows }: { rows: { key: string; label: string; value: number }[] }) {
   const total = rows.reduce((sum, row) => sum + row.value, 0);
   const max = Math.max(...rows.map((row) => row.value), 1);
@@ -291,52 +299,33 @@ function TopSourcesCard({ rows }: { rows: { key: string; label: string; value: n
         {rows.length === 0 ? (
           <p className="text-sm text-text-sub-600">Nothing was ingested in this window.</p>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-subheading-xs uppercase text-text-soft-400">
-                <th className="pb-1 font-normal">Source</th>
-                <th className="pb-1 pl-2 text-right font-normal">Documents</th>
-                <th className="pb-1 pl-2 text-right font-normal">Percentage</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <Fragment key={row.key}>
-                  <tr>
-                    <td className="pt-2">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="size-2.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: SOURCE_COLORS[row.key] ?? '#94a3b8' }}
-                        />
-                        <span className="truncate text-sm text-text-sub-600">{row.label}</span>
-                      </span>
-                    </td>
-                    <td className="pl-2 pt-2 text-right text-sm tabular-nums text-text-strong-950">
-                      {row.value}
-                    </td>
-                    <td className="pl-2 pt-2 text-right text-sm tabular-nums text-text-soft-400">
-                      {total === 0 ? '—' : `${((row.value / total) * 100).toFixed(1)}%`}
-                    </td>
-                  </tr>
-                  {/* The bar spans the row rather than taking a fourth column.
-                      Squeezed between two number columns in a card this narrow
-                      it had 56px to work with, which is not a length anyone can
-                      compare. */}
-                  <tr>
-                    <td colSpan={3} className="pb-1 pt-1.5">
-                      <span className="block h-2 overflow-hidden rounded-full bg-bg-soft-200">
-                        <span
-                          className="block h-full rounded-full bg-primary-base"
-                          style={{ width: `${Math.max((row.value / max) * 100, 2)}%` }}
-                        />
-                      </span>
-                    </td>
-                  </tr>
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
+          <ul className="space-y-2.5">
+            {rows.map((row) => (
+              <li key={row.key} className="space-y-1">
+                <div className="flex items-baseline gap-2">
+                  <span
+                    className="size-2.5 shrink-0 translate-y-px rounded-full"
+                    style={{ backgroundColor: SOURCE_COLORS[row.key] ?? '#94a3b8' }}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm text-text-sub-600">
+                    {row.label}
+                  </span>
+                  <span className="shrink-0 text-sm tabular-nums text-text-strong-950">
+                    {row.value}
+                  </span>
+                  <span className="w-12 shrink-0 text-right text-sm tabular-nums text-text-soft-400">
+                    {total === 0 ? '—' : `${((row.value / total) * 100).toFixed(1)}%`}
+                  </span>
+                </div>
+                <span className="block h-2 overflow-hidden rounded-full bg-bg-soft-200">
+                  <span
+                    className="block h-full rounded-full bg-primary-base"
+                    style={{ width: `${Math.max((row.value / max) * 100, 2)}%` }}
+                  />
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
 
         {/* Only connected providers appear. A row of zeros for a connector
