@@ -28,7 +28,10 @@ export function Select({
   ...props
 }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <span className={cn('relative inline-block', className)}>
+    // Block and full-width by default, as a bare `<select>` was: the wrapper
+    // stands in for the control, so a label above it must stay above it. A
+    // caller passing its own width overrides this.
+    <span className={cn('relative block w-full', className)}>
       <select
         className="flex h-10 w-full appearance-none rounded-md border border-input bg-background py-2 pl-3 pr-9 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         {...props}

@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Pencil, Tags } from 'lucide-react';
+import { SectionTitle } from '@/components/section-title';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
@@ -70,6 +72,7 @@ export function MetadataPanel(props: Props) {
   if (editing) {
     return (
       <div className="space-y-3 text-sm">
+        <SectionTitle icon={Tags} tone="blue" title="Metadata" />
         <Field label="Title">
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
@@ -121,17 +124,29 @@ export function MetadataPanel(props: Props) {
   }
 
   return (
-    <div className="space-y-2 text-sm">
+    <div className="text-sm">
+      {/* The panel draws its own heading so the edit button sits beside the
+          state that controls it, rather than in a header the page owns. */}
+      <SectionTitle
+        icon={Tags}
+        tone="blue"
+        title="Metadata"
+        action={
+          can('edit-metadata') && (
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+              <Pencil className="mr-1.5 size-3.5" />
+              Edit metadata
+            </Button>
+          )
+        }
+      />
+
       <ReadOnly label="Type">
         {props.documentType ? (
-          <span>
+          <span className="font-medium text-primary-base">
             {TYPE_LABELS[props.documentType] ?? props.documentType}
             {props.typeConfidence != null && (
-              <span className="text-text-sub-600">
-                {' '}
-                · {Math.round(props.typeConfidence * 100)}%
-                {props.typeConfidence === 1 && ' (confirmed)'}
-              </span>
+              <> · {Math.round(props.typeConfidence * 100)}%{props.typeConfidence === 1 && ' (confirmed)'}</>
             )}
           </span>
         ) : null}
@@ -162,25 +177,22 @@ export function MetadataPanel(props: Props) {
       <ReadOnly label="Text source">{props.textSource}</ReadOnly>
 
       {props.metadata.keywords && props.metadata.keywords.length > 0 && (
-        <div className="flex flex-wrap gap-1 pt-1">
+        <div className="mt-4 flex flex-wrap gap-1.5 border-t border-stroke-soft-200 pt-4">
           {props.metadata.keywords.map((keyword) => (
-            <Badge key={keyword} variant="secondary">
+            <span
+              key={keyword}
+              className="rounded-md bg-primary-lighter px-2.5 py-1 text-xs font-medium text-primary-base"
+            >
               {keyword}
-            </Badge>
+            </span>
           ))}
         </div>
       )}
 
       {props.editedAt && (
-        <p className="pt-1 text-xs text-text-sub-600">
+        <p className="pt-3 text-xs text-text-soft-400">
           Edited by hand on {new Date(props.editedAt).toLocaleString('en-GB')}
         </p>
-      )}
-
-      {can('edit-metadata') && (
-        <Button size="sm" variant="outline" className="mt-2" onClick={() => setEditing(true)}>
-          Edit metadata
-        </Button>
       )}
     </div>
   );
@@ -197,9 +209,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function ReadOnly({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-4 py-1.5">
       <span className="w-28 shrink-0 text-text-sub-600">{label}</span>
-      <span className="min-w-0 flex-1 break-words">{children || '—'}</span>
+      <span className="min-w-0 flex-1 break-words text-text-strong-950">{children || (
+        // An em dash, not an empty cell: the field was looked for and not
+        // found, which is different from the row not existing.
+        <span className="text-text-soft-400">—</span>
+      )}</span>
     </div>
   );
 }
