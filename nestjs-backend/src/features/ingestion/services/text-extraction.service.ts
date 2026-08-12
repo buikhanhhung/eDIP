@@ -22,6 +22,8 @@ import {
   type TextItem,
 } from './pdf-tables';
 import { ensurePdfjs } from './pdfjs-init';
+import { pptxToText } from './pptx-to-text';
+import { xlsxToText } from './xlsx-to-text';
 
 export interface ExtractionResult {
   text: string;
@@ -70,6 +72,10 @@ export class TextExtractionService {
         return { text: buffer.toString('utf8'), textSource: 'native' };
       case 'docx':
         return this.extractDocx(buffer);
+      case 'xlsx':
+        return this.extractWorkbook(buffer);
+      case 'pptx':
+        return this.extractDeck(buffer);
       case 'pdf':
         return this.extractPdf(buffer);
       case 'image':
@@ -131,6 +137,28 @@ export class TextExtractionService {
         (skipped > 0 ? `, noted ${skipped} in a format vision cannot take` : ''),
     );
     return { text, textSource: 'docx' };
+  }
+
+  /**
+   * A workbook keeps its structure explicitly, so nothing has to be inferred:
+   * exceljs has already spread every merged cell across the columns it covers,
+   * and a formula carries the value it last computed.
+   */
+  private async extractWorkbook(buffer: Buffer): Promise<ExtractionResult> {
+    const { text, warning } = await xlsxToText(buffer);
+    if (text.trim().length === 0) throw new Error('This workbook has no readable cells');
+
+    if (warning) this.logger.warn(`xlsx: ${warning}`);
+    return { text, textSource: 'xlsx', warning };
+  }
+
+  /** One section per slide, with its tables and its speaker notes. */
+  private async extractDeck(buffer: Buffer): Promise<ExtractionResult> {
+    const { text, slideCount } = await pptxToText(buffer);
+    if (text.trim().length === 0) throw new Error('This presentation has no readable text');
+
+    this.logger.log(`pptx: read ${slideCount} slide(s)`);
+    return { text, textSource: 'pptx' };
   }
 
   private async extractPdf(buffer: Buffer): Promise<ExtractionResult> {

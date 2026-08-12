@@ -12,7 +12,8 @@ import { statusLabel } from '@/features/documents/document-types';
  * Mirrors the server allowlist. Two copies is the cost of two deployables; the
  * server's copy is the one that decides, this one only shapes the file picker.
  */
-const ACCEPTED = '.txt,.md,.markdown,.csv,.json,.log,.xml,.html,.pdf,.docx,.png,.jpg,.jpeg,.webp';
+const ACCEPTED =
+  '.txt,.md,.markdown,.csv,.json,.log,.xml,.html,.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp';
 
 const POLL_INTERVAL_MS = 1500;
 const TERMINAL = ['completed', 'failed'];

@@ -27,6 +27,8 @@ enum TextSource {
   native
   pdf_text
   docx
+  xlsx
+  pptx
   vision
 }
 
