@@ -3,9 +3,19 @@ import { pageItemsToText, TABULAR_PAGE_COVERAGE, type TextItem } from './pdf-tab
 /** Builds a page of items at explicit coordinates, the way a PDF holds them. */
 function page(rows: { y: number; cells: { x: number; str: string }[] }[]): TextItem[] {
   return rows.flatMap((row) =>
-    row.cells.map((cell) => ({ str: cell.str, x: cell.x, y: row.y, fontSize: 12 })),
+    row.cells.map((cell) => ({
+      str: cell.str,
+      x: cell.x,
+      y: row.y,
+      // Roughly Helvetica at 12pt; only the right edge of a table depends on it.
+      width: cell.str.length * 6,
+      fontSize: 12,
+    })),
   );
 }
+
+/** The tests assert on the rendered page, which is the blocks joined up. */
+const asText = (result: { blocks: string[] }) => result.blocks.join('\n');
 
 describe('pageItemsToText', () => {
   it('rebuilds an aligned grid as a markdown table', () => {
@@ -17,8 +27,8 @@ describe('pageItemsToText', () => {
       ]),
     );
 
-    expect(result.tablesFound).toBe(1);
-    expect(result.text).toBe(
+    expect(result.tables).toHaveLength(1);
+    expect(asText(result)).toBe(
       [
         '| Hạng mục | Số lượng | Thành tiền |',
         '| --- | --- | --- |',
@@ -36,7 +46,7 @@ describe('pageItemsToText', () => {
       ]),
     );
 
-    expect(result.tablesFound).toBe(1);
+    expect(result.tables).toHaveLength(1);
   });
 
   it('leaves a multi-panel layout below the coverage a rebuild needs', () => {
@@ -64,17 +74,17 @@ describe('pageItemsToText', () => {
       ]),
     );
 
-    expect(result.tablesFound).toBe(0);
-    expect(result.text).toBe('một\nhai\nba');
+    expect(result.tables).toHaveLength(0);
+    expect(asText(result)).toBe('một\nhai\nba');
   });
 
   it('reads the page from the top down, not in item order', () => {
     const result = pageItemsToText([
-      { str: 'dưới', x: 60, y: 100, fontSize: 12 },
-      { str: 'trên', x: 60, y: 700, fontSize: 12 },
+      { str: 'dưới', x: 60, y: 100, width: 24, fontSize: 12 },
+      { str: 'trên', x: 60, y: 700, width: 24, fontSize: 12 },
     ]);
 
-    expect(result.text).toBe('trên\ndưới');
+    expect(asText(result)).toBe('trên\ndưới');
   });
 
   it('escapes a pipe so a cell cannot open a phantom column', () => {
@@ -85,10 +95,10 @@ describe('pageItemsToText', () => {
       ]),
     );
 
-    expect(result.text).toContain('a\\|b');
+    expect(asText(result)).toContain('a\\|b');
   });
 
   it('returns nothing for a page with no text', () => {
-    expect(pageItemsToText([])).toEqual({ text: '', tablesFound: 0, tableCoverage: 0 });
+    expect(pageItemsToText([])).toEqual({ blocks: [], tables: [], tableCoverage: 0 });
   });
 });

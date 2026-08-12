@@ -2,6 +2,8 @@ export interface TextItem {
   str: string;
   x: number;
   y: number;
+  /** Advance width of the run, used to find a table's right edge. */
+  width: number;
   fontSize: number;
 }
 
@@ -39,12 +41,23 @@ const MIN_TABLE_COLUMNS = 2;
 interface Line {
   y: number;
   fontSize: number;
-  cells: { x: number; text: string }[];
+  cells: { x: number; width: number; text: string }[];
+}
+
+/** Where a table sits on the page, in PDF user space with y from the bottom. */
+export interface TableRegion {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  /** Which block this table occupies, so a better rendering can replace it. */
+  blockIndex: number;
 }
 
 export interface PageText {
-  text: string;
-  tablesFound: number;
+  /** Text blocks in reading order; a table occupies exactly one of them. */
+  blocks: string[];
+  tables: TableRegion[];
   /** Share of the page's lines that landed inside a table, 0 to 1. */
   tableCoverage: number;
 }
@@ -59,18 +72,19 @@ export const TABULAR_PAGE_COVERAGE = 0.5;
 
 export function pageItemsToText(items: TextItem[]): PageText {
   const lines = groupIntoLines(items);
-  if (lines.length === 0) return { text: '', tablesFound: 0, tableCoverage: 0 };
+  if (lines.length === 0) return { blocks: [], tables: [], tableCoverage: 0 };
 
   const blocks: string[] = [];
-  let tablesFound = 0;
+  const tables: TableRegion[] = [];
   let tableLines = 0;
   let index = 0;
 
   while (index < lines.length) {
     const run = tableRunAt(lines, index);
     if (run) {
-      blocks.push(renderTable(lines.slice(index, index + run)));
-      tablesFound += 1;
+      const rows = lines.slice(index, index + run);
+      tables.push({ ...boundsOf(rows), blockIndex: blocks.length });
+      blocks.push(renderTable(rows));
       tableLines += run;
       index += run;
       continue;
@@ -79,10 +93,19 @@ export function pageItemsToText(items: TextItem[]): PageText {
     index += 1;
   }
 
+  return { blocks, tables, tableCoverage: tableLines / lines.length };
+}
+
+/** Text sits inside its ruled box, so the edges push out to catch the rules. */
+function boundsOf(rows: Line[]): Omit<TableRegion, 'blockIndex'> {
+  const pad = Math.max(...rows.map((row) => row.fontSize));
+  const cells = rows.flatMap((row) => row.cells);
+
   return {
-    text: blocks.join('\n'),
-    tablesFound,
-    tableCoverage: tableLines / lines.length,
+    left: Math.min(...cells.map((cell) => cell.x)) - pad,
+    right: Math.max(...cells.map((cell) => cell.x + cell.width)) + pad,
+    top: Math.max(...rows.map((row) => row.y)) + pad * 1.5,
+    bottom: Math.min(...rows.map((row) => row.y)) - pad,
   };
 }
 
@@ -96,10 +119,14 @@ function groupIntoLines(items: TextItem[]): Line[] {
     const fontSize = item.fontSize || 12;
     const last = lines[lines.length - 1];
     if (last && Math.abs(last.y - item.y) <= fontSize * ROW_TOLERANCE) {
-      last.cells.push({ x: item.x, text: item.str.trim() });
+      last.cells.push({ x: item.x, width: item.width, text: item.str.trim() });
       continue;
     }
-    lines.push({ y: item.y, fontSize, cells: [{ x: item.x, text: item.str.trim() }] });
+    lines.push({
+      y: item.y,
+      fontSize,
+      cells: [{ x: item.x, width: item.width, text: item.str.trim() }],
+    });
   }
 
   for (const line of lines) line.cells.sort((a, b) => a.x - b.x);

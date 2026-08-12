@@ -13,7 +13,14 @@ import {
   toVisionImage,
   unreadableImageNote,
 } from './embedded-images';
-import { pageItemsToText, TABULAR_PAGE_COVERAGE, type TextItem } from './pdf-tables';
+import { cropTableRegions } from './pdf-crop';
+import {
+  pageItemsToText,
+  TABULAR_PAGE_COVERAGE,
+  type PageText,
+  type TableRegion,
+  type TextItem,
+} from './pdf-tables';
 import { ensurePdfjs } from './pdfjs-init';
 
 export interface ExtractionResult {
@@ -242,30 +249,89 @@ export class TextExtractionService {
       // Uint8Array makes pdfjs structured-clone its own worker port and throw.
       const proxy = await getDocumentProxy(new Uint8Array(buffer));
       const { items } = await extractTextItems(proxy);
+      const parsed = items.map((page) => pageItemsToText(page as TextItem[]));
 
       // Page by page, and only where the page really is a table. pdfjs
       // recovers reading order across a multi-panel layout; sweeping the item
       // stream top to bottom reads straight across those panels and
       // interleaves them. So the rebuilt page is taken only when the grid is
       // most of what is on it, and prose keeps the renderer that gets it right.
-      let rebuilt = 0;
-      const pages = items.map((page, index) => {
-        const parsed = pageItemsToText(page as TextItem[]);
-        if (parsed.tablesFound > 0 && parsed.tableCoverage >= TABULAR_PAGE_COVERAGE) {
-          rebuilt += 1;
-          return parsed.text;
-        }
-        return pageTexts[index] ?? parsed.text;
-      });
+      const tabular = parsed.map(
+        (page) => page.tables.length > 0 && page.tableCoverage >= TABULAR_PAGE_COVERAGE,
+      );
+      if (!tabular.some(Boolean)) return null;
 
-      if (rebuilt === 0) return null;
+      await this.readTablesWithVision(buffer, parsed, tabular);
 
-      this.logger.log(`pdf: rebuilt tables on ${rebuilt} of ${pages.length} page(s)`);
+      const pages = parsed.map((page, index) =>
+        tabular[index] ? page.blocks.join('\n') : (pageTexts[index] ?? page.blocks.join('\n')),
+      );
+      this.logger.log(`pdf: rebuilt tables on ${tabular.filter(Boolean).length} page(s)`);
       return pages;
     } catch (error) {
       this.logger.warn(`could not rebuild tables from item positions: ${(error as Error).message}`);
       return null;
     }
+  }
+
+  /**
+   * Replaces each detected table with the model's reading of a picture of it.
+   *
+   * Coordinates locate a grid reliably but cannot say what a merged cell
+   * spans — the PDF holds no such fact, only a wider run of text. Cropping the
+   * table out of the rendered page and handing that to vision recovers it,
+   * along with ruled lines the text layer never mentions.
+   *
+   * Failure is silent by design: the coordinate-built table is already in
+   * place, so anything that goes wrong here leaves a usable table rather than
+   * none. Every crop in the document goes in one request.
+   */
+  private async readTablesWithVision(
+    buffer: Buffer,
+    parsed: PageText[],
+    tabular: boolean[],
+  ): Promise<void> {
+    const crops: { page: number; region: TableRegion; image: VisionImage }[] = [];
+
+    for (const [index, page] of parsed.entries()) {
+      if (!tabular[index]) continue;
+      try {
+        const rendered = await renderPageAsImage(new Uint8Array(buffer), index + 1, {
+          scale: RENDER_SCALE,
+          canvasImport: () => import('@napi-rs/canvas'),
+        });
+        const cut = await cropTableRegions(
+          Buffer.from(new Uint8Array(rendered)),
+          page.tables,
+          RENDER_SCALE,
+        );
+        crops.push(...cut.map((entry) => ({ page: index, ...entry })));
+      } catch (error) {
+        this.logger.warn(`page ${index + 1}: could not crop tables: ${(error as Error).message}`);
+      }
+    }
+
+    if (crops.length === 0) return;
+
+    let readings: ImageReading[];
+    try {
+      readings = await this.readAll(crops.map((crop) => crop.image));
+    } catch (error) {
+      this.logger.warn(`vision could not read the tables: ${(error as Error).message}`);
+      return;
+    }
+
+    let replaced = 0;
+    for (const [index, crop] of crops.entries()) {
+      // A reply with no pipe is prose, not a table — the coordinate version is
+      // the better answer in that case.
+      const markdown = readings[index]?.transcription?.trim() ?? '';
+      if (!markdown.includes('|')) continue;
+      parsed[crop.page].blocks[crop.region.blockIndex] = markdown;
+      replaced += 1;
+    }
+
+    this.logger.log(`pdf: vision read ${replaced} of ${crops.length} table(s)`);
   }
 
   /** Several images per request, so image count costs batches, not calls. */
