@@ -7,6 +7,7 @@ import {
   type EmbeddingInputType,
   type IEmbeddingService,
 } from '@infrastructure/ai/ai.port';
+import { TokenMeterService } from '@infrastructure/ai/token-meter.service';
 import { assertOpenAiConfigured, createOpenAiClient } from './openai-client';
 
 /** The API accepts large batches; this keeps a single request bounded. */
@@ -18,7 +19,10 @@ export class OpenAiEmbeddingService implements IEmbeddingService {
   private readonly client: OpenAI;
   private readonly model: string;
 
-  constructor(private readonly config: ConfigService<EnvConfig, true>) {
+  constructor(
+    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly meter: TokenMeterService,
+  ) {
     this.client = createOpenAiClient(config);
     this.model = this.config.get('OPENAI_EMBEDDING_MODEL', { infer: true });
   }
@@ -43,10 +47,21 @@ export class OpenAiEmbeddingService implements IEmbeddingService {
 
     const vectors: number[][] = [];
     for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+      const batch = texts.slice(i, i + BATCH_SIZE);
       const response = await this.client.embeddings.create({
         model: this.model,
-        input: texts.slice(i, i + BATCH_SIZE),
+        input: batch,
         dimensions: EMBEDDING_DIMENSION,
+      });
+
+      // OpenAI reports embedding tokens, so this row carries real figures
+      // where the Gemini equivalent can only carry characters.
+      this.meter.record({
+        provider: 'openai',
+        model: this.model,
+        purpose: 'embedding',
+        inputTokens: response.usage?.prompt_tokens,
+        inputChars: batch.reduce((sum, text) => sum + text.length, 0),
       });
       vectors.push(...response.data.map((item) => item.embedding));
     }

@@ -9,6 +9,7 @@ import CustomZodValidationPipe from '@common/pipes/custom-zod-validation.pipe';
 import { RbacGuard } from '@common/rbac/rbac.guard';
 import { type EnvConfig, validateEnv } from '@config/env.config';
 import { AuditInterceptor } from '@common/interceptors/audit.interceptor';
+import { TokenMeterModule } from '@infrastructure/ai/token-meter.module';
 import { AskModule } from '@features/ask/ask.module';
 import { AuditModule } from '@features/audit/audit.module';
 import { AuthModule } from '@features/auth/auth.module';
@@ -49,6 +50,9 @@ import { SharedModule } from '@shared/shared.module';
     }),
 
     SharedModule,
+    // Global, so every provider adapter can meter its own calls without the
+    // module that selects between them being in the dependency chain.
+    TokenMeterModule,
     QueueModule,
     AuthModule,
     DocumentsModule,

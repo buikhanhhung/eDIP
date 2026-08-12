@@ -7,6 +7,7 @@ import {
   type EmbeddingInputType,
   type IEmbeddingService,
 } from '@infrastructure/ai/ai.port';
+import { TokenMeterService } from '@infrastructure/ai/token-meter.service';
 import { assertGeminiConfigured, createGeminiClient } from './gemini-client';
 
 const BATCH_SIZE = 96;
@@ -17,7 +18,10 @@ export class GeminiEmbeddingService implements IEmbeddingService {
   private readonly client: GoogleGenAI;
   private readonly model: string;
 
-  constructor(private readonly config: ConfigService<EnvConfig, true>) {
+  constructor(
+    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly meter: TokenMeterService,
+  ) {
     this.client = createGeminiClient(config);
     this.model = this.config.get('GEMINI_EMBEDDING_MODEL', { infer: true });
   }
@@ -44,10 +48,22 @@ export class GeminiEmbeddingService implements IEmbeddingService {
 
     const vectors: number[][] = [];
     for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+      const batch = texts.slice(i, i + BATCH_SIZE);
       const response = await this.client.models.embedContent({
         model: this.model,
-        contents: texts.slice(i, i + BATCH_SIZE),
+        contents: batch,
         config: { outputDimensionality: EMBEDDING_DIMENSION },
+      });
+
+      // Gemini's embedding response carries no token counts — only a billable
+      // character count, and only on its enterprise platform. The characters
+      // are counted here instead, and the row is marked unreported so a zero
+      // token figure is never read as a free call.
+      this.meter.record({
+        provider: 'gemini',
+        model: this.model,
+        purpose: 'embedding',
+        inputChars: batch.reduce((sum, text) => sum + text.length, 0),
       });
 
       for (const embedding of response.embeddings ?? []) {

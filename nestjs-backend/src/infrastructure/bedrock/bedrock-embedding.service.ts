@@ -7,6 +7,7 @@ import {
   type EmbeddingInputType,
   type IEmbeddingService,
 } from '@infrastructure/ai/ai.port';
+import { TokenMeterService } from '@infrastructure/ai/token-meter.service';
 import { assertBedrockConfigured, createBedrockClient } from './bedrock-client';
 
 /** Max texts per request for Cohere embed. */
@@ -27,7 +28,10 @@ export class BedrockEmbeddingService implements IEmbeddingService {
   private readonly client: BedrockRuntimeClient;
   private readonly modelId: string;
 
-  constructor(private readonly config: ConfigService<EnvConfig, true>) {
+  constructor(
+    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly meter: TokenMeterService,
+  ) {
     this.client = createBedrockClient(config);
     this.modelId = this.config.get('BEDROCK_EMBEDDING_MODEL_ID', { infer: true });
   }
@@ -79,6 +83,16 @@ export class BedrockEmbeddingService implements IEmbeddingService {
         this.logger.error(`Titan unexpected response keys: ${Object.keys(body).join(',')}`);
         throw new Error('Titan model returned an unexpected response shape');
       }
+      // Titan reports the tokens it counted; Cohere's response does not, so
+      // only the characters are known there.
+      this.meter.record({
+        provider: 'bedrock',
+        model: this.modelId,
+        purpose: 'embedding',
+        inputTokens: body.inputTextTokenCount,
+        inputChars: text.length,
+      });
+
       results.push(body.embedding);
     }
     return results;
@@ -101,6 +115,16 @@ export class BedrockEmbeddingService implements IEmbeddingService {
         }),
       );
       const body = JSON.parse(new TextDecoder().decode(response.body));
+
+      this.meter.record({
+        provider: 'bedrock',
+        model: this.modelId,
+        purpose: 'embedding',
+        inputChars: texts
+          .slice(i, i + COHERE_BATCH_SIZE)
+          .reduce((sum, text) => sum + text.length, 0),
+      });
+
       // v4 nests under `float`; v3 returns the array directly.
       const embeddings = Array.isArray(body.embeddings)
         ? body.embeddings

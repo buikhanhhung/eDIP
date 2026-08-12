@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvConfig } from '@config/env.config';
 import type { ChatMessage, ILlmService, ToolSpec } from '@infrastructure/ai/ai.port';
+import { TokenMeterService } from '@infrastructure/ai/token-meter.service';
 import { assertGeminiConfigured, createGeminiClient, toGeminiSchema } from './gemini-client';
 
 const DEFAULT_MAX_TOKENS = 4096;
@@ -18,7 +19,10 @@ export class GeminiLlmService implements ILlmService {
   /** Serialises the pacing gate; requests queue behind one another. */
   private nextSlot = Promise.resolve();
 
-  constructor(private readonly config: ConfigService<EnvConfig, true>) {
+  constructor(
+    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly meter: TokenMeterService,
+  ) {
     this.client = createGeminiClient(config);
     this.model = this.config.get('GEMINI_LLM_MODEL', { infer: true });
     this.minIntervalMs = this.config.get('GEMINI_MIN_REQUEST_INTERVAL_MS', { infer: true });
@@ -67,6 +71,16 @@ export class GeminiLlmService implements ILlmService {
       }),
     );
 
+    // Metered as `answer`: a plain completion is only used for answering a
+    // question over the corpus.
+    this.meter.record({
+      provider: 'gemini',
+      model: this.model,
+      purpose: 'answer',
+      inputTokens: response.usageMetadata?.promptTokenCount,
+      outputTokens: response.usageMetadata?.candidatesTokenCount,
+    });
+
     return response.text?.trim() ?? '';
   }
 
@@ -94,6 +108,17 @@ export class GeminiLlmService implements ILlmService {
         },
       }),
     );
+
+    // Metered before the content check: a blocked or truncated response still
+    // consumed the prompt, and leaving those calls out would make the spend
+    // look smaller every time something went wrong.
+    this.meter.record({
+      provider: 'gemini',
+      model: this.model,
+      purpose: this.meter.purposeForTool(tool.name),
+      inputTokens: response.usageMetadata?.promptTokenCount,
+      outputTokens: response.usageMetadata?.candidatesTokenCount,
+    });
 
     const text = response.text?.trim();
     if (!text) {

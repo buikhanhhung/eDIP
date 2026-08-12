@@ -7,6 +7,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EnvConfig } from '@config/env.config';
 import type { ChatMessage, ILlmService, ToolSpec } from '@infrastructure/ai/ai.port';
+import { TokenMeterService } from '@infrastructure/ai/token-meter.service';
 import { assertBedrockConfigured, createBedrockClient } from './bedrock-client';
 
 const DEFAULT_MAX_TOKENS = 4096;
@@ -27,7 +28,10 @@ export class BedrockLlmService implements ILlmService {
   private readonly client: BedrockRuntimeClient;
   private readonly modelId: string;
 
-  constructor(private readonly config: ConfigService<EnvConfig, true>) {
+  constructor(
+    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly meter: TokenMeterService,
+  ) {
     this.client = createBedrockClient(config);
     this.modelId = this.config.get('BEDROCK_LLM_MODEL_ID', { infer: true });
   }
@@ -49,6 +53,15 @@ export class BedrockLlmService implements ILlmService {
         inferenceConfig: { maxTokens, temperature: DEFAULT_TEMPERATURE },
       }),
     );
+
+    // A plain completion is only used for answering a question.
+    this.meter.record({
+      provider: 'bedrock',
+      model: this.modelId,
+      purpose: 'answer',
+      inputTokens: response.usage?.inputTokens,
+      outputTokens: response.usage?.outputTokens,
+    });
 
     return (response.output?.message?.content ?? [])
       .map((block) => block.text ?? '')
@@ -87,6 +100,17 @@ export class BedrockLlmService implements ILlmService {
         },
       }),
     );
+
+    // Metered before the content checks: a refused or truncated response still
+    // consumed the prompt, and skipping those calls would make the spend look
+    // smaller every time something went wrong.
+    this.meter.record({
+      provider: 'bedrock',
+      model: this.modelId,
+      purpose: this.meter.purposeForTool(tool.name),
+      inputTokens: response.usage?.inputTokens,
+      outputTokens: response.usage?.outputTokens,
+    });
 
     const toolUse = (response.output?.message?.content ?? []).find((b) => b.toolUse)?.toolUse;
     if (!toolUse || toolUse.input === undefined) {

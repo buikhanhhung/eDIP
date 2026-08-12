@@ -9,6 +9,7 @@ import {
   READ_PROMPT,
   TRANSCRIBE_PROMPT,
 } from '@infrastructure/ai/vision-prompts';
+import { TokenMeterService } from '@infrastructure/ai/token-meter.service';
 import { assertBedrockConfigured, createBedrockClient } from './bedrock-client';
 
 const MAX_TOKENS = 4096;
@@ -25,7 +26,10 @@ export class BedrockVisionService implements IVisionService {
   private readonly client: BedrockRuntimeClient;
   private readonly modelId: string;
 
-  constructor(private readonly config: ConfigService<EnvConfig, true>) {
+  constructor(
+    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly meter: TokenMeterService,
+  ) {
     this.client = createBedrockClient(config);
     this.modelId = this.config.get('BEDROCK_LLM_MODEL_ID', { infer: true });
   }
@@ -68,6 +72,14 @@ export class BedrockVisionService implements IVisionService {
         inferenceConfig: { maxTokens: MAX_TOKENS, temperature: 0 },
       }),
     );
+
+    this.meter.record({
+      provider: 'bedrock',
+      model: this.modelId,
+      purpose: 'vision',
+      inputTokens: response.usage?.inputTokens,
+      outputTokens: response.usage?.outputTokens,
+    });
 
     return (response.output?.message?.content ?? []).map((block) => block.text ?? '').join('\n');
   }

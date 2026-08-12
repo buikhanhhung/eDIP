@@ -76,8 +76,12 @@ export function DonutChart({ slices, total, totalLabel }: Props) {
       </svg>
 
       {/* The legend carries the numbers, so no value is reachable only by
-          hovering the ring. */}
-      <ul className="min-w-0 flex-1 space-y-1.5">
+          hovering the ring.
+
+          A minimum width rather than `min-w-0`: in a narrow card the latter
+          lets the labels truncate to nothing, leaving a colour-guessing game.
+          With a floor, the legend wraps below the ring instead. */}
+      <ul className="min-w-[150px] flex-1 space-y-1.5">
         {slices.map((slice) => (
           <li
             key={slice.key}

@@ -165,13 +165,15 @@ function Overview({ data, comparison }: { data: OverviewStats; comparison: strin
         </CardContent>
       </Card>
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <Card>
+      {/* Three to a row, and cards stretch to the tallest in their row. Letting
+          each card size to its own content is what left the grid ragged. */}
+      <div className="grid gap-5 lg:grid-cols-3">
+        <Card className="flex flex-col">
           <CardHeader className="flex-row items-baseline justify-between pb-2">
             <CardTitle>Documents by type</CardTitle>
-            <CardLink to="/library">View all types</CardLink>
+            <CardLink to="/library">View all</CardLink>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1">
             {typeSlices.length > 0 ? (
               // "classified", not "documents": a file that failed before the
               // classifier ran has no type, so this total can sit below the
@@ -185,15 +187,16 @@ function Overview({ data, comparison }: { data: OverviewStats; comparison: strin
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader className="flex-row items-baseline justify-between pb-2">
             <CardTitle>Top data sources</CardTitle>
-            <CardLink to="/sources">Manage sources</CardLink>
+            <CardLink to="/sources">Manage</CardLink>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1">
             <BarList
               rows={sourceRows}
               showPercent
+              layout="stacked"
               empty="Nothing was ingested in this window."
             />
             {/* Only connected providers appear. A row of zeros for a connector
@@ -203,23 +206,21 @@ function Overview({ data, comparison }: { data: OverviewStats; comparison: strin
             </p>
           </CardContent>
         </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader className="pb-2">
+            <CardTitle>How the text was read</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1">
+            <BarList rows={textSourceRows} empty="Nothing has been processed yet." />
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-3">
         <MostUsedCard usage={data.usage} />
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>How the text was read</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BarList rows={textSourceRows} empty="Nothing has been processed yet." />
-            </CardContent>
-          </Card>
-
-          <QueryInsightsCard ai={data.ai} />
-        </div>
+        <TokenUsageCard tokens={data.tokens} />
+        <QueryInsightsCard ai={data.ai} />
       </div>
     </>
   );
@@ -248,20 +249,21 @@ function MostUsedCard({ usage }: { usage: OverviewStats['usage'] }) {
   );
 
   return (
-    <Card>
+    <Card className="flex flex-col">
       <CardHeader className="pb-2">
         <CardTitle>Most-used document types</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="flex-1 space-y-4">
         {rows.length === 0 ? (
           <p className="text-sm text-text-sub-600">
-            Nothing was opened or downloaded in this window.
+            No document was opened, downloaded or cited in this window.
           </p>
         ) : (
           <>
             <BarList
               rows={rows}
               showPercent
+              layout="stacked"
               onSelect={(key) => setSelected(key)}
               selectedKey={active}
             />
@@ -285,8 +287,10 @@ function MostUsedCard({ usage }: { usage: OverviewStats['usage'] }) {
                         <span className="min-w-0 flex-1 truncate text-sm text-text-strong-950">
                           {document.title ?? document.filename}
                         </span>
+                        {/* "uses", not "opens": a use is a view, a download or
+                            an answer quoting the document. */}
                         <span className="shrink-0 text-xs tabular-nums text-text-sub-600">
-                          {document.uses} {document.uses === 1 ? 'open' : 'opens'}
+                          {document.uses} {document.uses === 1 ? 'use' : 'uses'}
                         </span>
                       </Link>
                     </li>
@@ -294,6 +298,93 @@ function MostUsedCard({ usage }: { usage: OverviewStats['usage'] }) {
                 </ul>
               )}
             </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** What each kind of model call is for, in words rather than enum values. */
+const PURPOSE_LABELS: Record<string, string> = {
+  answer: 'AI answers',
+  analysis: 'Document analysis',
+  entities: 'Entity extraction',
+  vision: 'Vision (scans, images)',
+  embedding: 'Embeddings',
+};
+
+/**
+ * Where the model budget went, split by the job rather than by the model.
+ *
+ * "Answering questions costs more than reading scans" is something a reader can
+ * act on. "gemini-3.5-flash-lite costs everything" is not — one model does
+ * every job here.
+ *
+ * A purpose whose provider reports no token counts shows the characters it
+ * sent instead, marked as such. Presenting an unmeasured call as zero tokens
+ * would read as a free one.
+ */
+function TokenUsageCard({ tokens }: { tokens: OverviewStats['tokens'] }) {
+  const rows = tokens.byPurpose.map((row) => ({
+    key: row.purpose,
+    label: PURPOSE_LABELS[row.purpose] ?? row.purpose,
+    value: row.inputTokens + row.outputTokens,
+    unmeasured: row.reportedCalls === 0,
+    chars: row.inputChars,
+    calls: row.calls,
+  }));
+
+  const max = Math.max(...rows.map((row) => row.value), 1);
+
+  return (
+    <Card className="flex flex-col">
+      <CardHeader className="flex-row items-baseline justify-between pb-2">
+        <CardTitle>Token usage</CardTitle>
+        <span className="text-sm font-normal tabular-nums text-text-sub-600">
+          {compact(tokens.totalInput + tokens.totalOutput)} total
+        </span>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col justify-between">
+        {rows.length === 0 ? (
+          <p className="text-sm text-text-sub-600">No model calls in this window.</p>
+        ) : (
+          <>
+            <ul className="space-y-3">
+              {rows.map((row) => (
+                <li key={row.key} className="space-y-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm text-text-sub-600">
+                      {row.label}
+                    </span>
+                    <span className="shrink-0 text-sm tabular-nums text-text-strong-950">
+                      {row.unmeasured ? `${compact(row.chars)} chars` : compact(row.value)}
+                    </span>
+                  </div>
+                  {/* An unmeasured purpose gets an empty track. A filled bar
+                      would place it on the same scale as the measured ones,
+                      and a full-width one would read as the largest. */}
+                  <span className="block h-2 overflow-hidden rounded-full bg-bg-soft-200">
+                    {!row.unmeasured && (
+                      <span
+                        className="block h-full rounded-full bg-primary-base"
+                        style={{ width: `${Math.max((row.value / max) * 100, 2)}%` }}
+                      />
+                    )}
+                  </span>
+                  <p className="text-[11px] text-text-soft-400">
+                    {row.calls} {row.calls === 1 ? 'call' : 'calls'}
+                    {row.unmeasured && ' · provider reports no token counts'}
+                  </p>
+                </li>
+              ))}
+            </ul>
+
+            <p className="mt-4 border-t border-stroke-soft-200 pt-3 text-xs text-text-soft-400">
+              {compact(tokens.totalInput)} in · {compact(tokens.totalOutput)} out across{' '}
+              {tokens.calls} {tokens.calls === 1 ? 'call' : 'calls'}
+              {tokens.unreportedCalls > 0 && `, ${tokens.unreportedCalls} unmeasured`}
+            </p>
           </>
         )}
       </CardContent>
@@ -322,12 +413,12 @@ function QueryInsightsCard({ ai }: { ai: OverviewStats['ai'] }) {
   ];
 
   return (
-    <Card>
+    <Card className="flex flex-col">
       <CardHeader className="flex-row items-baseline justify-between pb-2">
         <CardTitle>AI query insights</CardTitle>
         <CardLink to="/audit">Activity log</CardLink>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1">
         <ul className="divide-y divide-stroke-soft-200">
           {rows.map((row) => (
             <li key={row.label} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
@@ -374,6 +465,13 @@ function formatBytes(bytes: number): string {
     unit += 1;
   }
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+/** Thousands and millions, so a token count stays readable beside a label. */
+function compact(value: number): string {
+  if (value < 1000) return String(value);
+  if (value < 1_000_000) return `${(value / 1000).toFixed(value < 10_000 ? 1 : 0)}K`;
+  return `${(value / 1_000_000).toFixed(1)}M`;
 }
 
 function formatDuration(ms: number): string {

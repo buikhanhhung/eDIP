@@ -9,6 +9,7 @@ import {
   READ_PROMPT,
   TRANSCRIBE_PROMPT,
 } from '@infrastructure/ai/vision-prompts';
+import { TokenMeterService } from '@infrastructure/ai/token-meter.service';
 import { assertGeminiConfigured, createGeminiClient } from './gemini-client';
 
 const MAX_TOKENS = 4096;
@@ -19,7 +20,10 @@ export class GeminiVisionService implements IVisionService {
   private readonly client: GoogleGenAI;
   private readonly model: string;
 
-  constructor(private readonly config: ConfigService<EnvConfig, true>) {
+  constructor(
+    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly meter: TokenMeterService,
+  ) {
     this.client = createGeminiClient(config);
     this.model = this.config.get('GEMINI_VISION_MODEL', { infer: true });
   }
@@ -61,6 +65,14 @@ export class GeminiVisionService implements IVisionService {
         },
       ],
       config: { maxOutputTokens: MAX_TOKENS, temperature: 0 },
+    });
+
+    this.meter.record({
+      provider: 'gemini',
+      model: this.model,
+      purpose: 'vision',
+      inputTokens: response.usageMetadata?.promptTokenCount,
+      outputTokens: response.usageMetadata?.candidatesTokenCount,
     });
 
     return response.text ?? '';

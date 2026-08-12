@@ -9,6 +9,7 @@ import {
   READ_PROMPT,
   TRANSCRIBE_PROMPT,
 } from '@infrastructure/ai/vision-prompts';
+import { TokenMeterService } from '@infrastructure/ai/token-meter.service';
 import { assertOpenAiConfigured, createOpenAiClient } from './openai-client';
 
 const MAX_TOKENS = 4096;
@@ -19,7 +20,10 @@ export class OpenAiVisionService implements IVisionService {
   private readonly client: OpenAI;
   private readonly model: string;
 
-  constructor(private readonly config: ConfigService<EnvConfig, true>) {
+  constructor(
+    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly meter: TokenMeterService,
+  ) {
     this.client = createOpenAiClient(config);
     this.model = this.config.get('OPENAI_VISION_MODEL', { infer: true });
   }
@@ -62,6 +66,14 @@ export class OpenAiVisionService implements IVisionService {
           ],
         },
       ],
+    });
+
+    this.meter.record({
+      provider: 'openai',
+      model: this.model,
+      purpose: 'vision',
+      inputTokens: response.usage?.prompt_tokens,
+      outputTokens: response.usage?.completion_tokens,
     });
 
     return response.choices[0]?.message?.content ?? '';

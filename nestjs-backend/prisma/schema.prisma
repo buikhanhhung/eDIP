@@ -39,6 +39,22 @@ enum DocumentSource {
   google_drive
 }
 
+/// What a model was asked to do. Named for the job rather than the API method,
+/// because "how many tokens went on answering questions" is the question a
+/// reader of the overview actually has.
+enum TokenPurpose {
+  /// Answering a question over the corpus.
+  answer
+  /// Classifying a document and pulling its metadata.
+  analysis
+  /// Naming entities and verifying them.
+  entities
+  /// Reading scans and images.
+  vision
+  /// Turning text into vectors, for both indexing and querying.
+  embedding
+}
+
 model User {
   id           String     @id @default(uuid())
   email        String     @unique
@@ -111,6 +127,43 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// One model call, and what it cost in tokens.
+///
+/// A row per call rather than a running total: totals cannot be sliced by date,
+/// purpose or model afterwards, and the whole point of recording this is to be
+/// able to ask which part of the pipeline is spending the budget.
+///
+/// `inputTokens` and `outputTokens` are what the provider reported. A provider
+/// that reports nothing still gets a row, with zeros — the call happened, and a
+/// missing row would understate how much work was done rather than how much it
+/// cost.
+model TokenUsage {
+  id       String       @id @default(uuid())
+  provider String // gemini | openai | bedrock
+  model    String
+  purpose  TokenPurpose
+
+  inputTokens  Int @default(0)
+  outputTokens Int @default(0)
+
+  /// Characters sent, counted locally.
+  ///
+  /// Recorded because Gemini's embedding endpoint reports no token usage at all
+  /// — only a billable character count, and only on its enterprise platform. A
+  /// character count is a real measurement of the same work, which beats
+  /// dividing by four and calling the result tokens.
+  inputChars Int @default(0)
+
+  /// True when the provider returned token figures for this call, so a zero is
+  /// not mistaken for a free request.
+  reported Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([purpose])
 }
 
 /// Modelled even though `vector` is an unsupported column type. Leaving the

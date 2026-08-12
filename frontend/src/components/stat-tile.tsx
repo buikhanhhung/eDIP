@@ -37,23 +37,27 @@ interface Props {
 
 export function StatTile({ icon: Icon, label, value, tone, delta, inverse, comparison }: Props) {
   return (
-    <Card>
-      {/* The icon takes its own line rather than sitting beside the label.
-          Five tiles across a page this width leaves roughly 140px inside each
-          card, and an icon in that row costs the label the space it needs to
-          stay on one line. */}
-      <CardContent className="space-y-2 p-4">
-        <span
-          className={cn('grid size-10 place-items-center rounded-xl', TILE_TONES[tone])}
-        >
-          <Icon className="size-5" strokeWidth={2} />
-        </span>
-        <div>
-          <p className="truncate text-[13px] text-text-sub-600">{label}</p>
-          {/* Proportional figures: a hero number is read, not aligned. */}
-          <p className="truncate text-2xl font-semibold leading-tight text-text-strong-950">
-            {value}
-          </p>
+    <Card className="h-full">
+      {/* Icon beside the label, as in the reference. Five tiles across leave
+          roughly 140px inside each card, so the icon is 36px and the label 12px
+          — enough for "Total documents" to stay on one line beside it. */}
+      <CardContent className="flex h-full flex-col justify-between gap-3 p-4">
+        <div className="flex items-center gap-2.5">
+          <span
+            className={cn(
+              'grid size-9 shrink-0 place-items-center rounded-xl',
+              TILE_TONES[tone],
+            )}
+          >
+            <Icon className="size-[18px]" strokeWidth={2} />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-xs text-text-sub-600">{label}</p>
+            {/* Proportional figures: a hero number is read, not aligned. */}
+            <p className="truncate text-[22px] font-semibold leading-tight text-text-strong-950">
+              {value}
+            </p>
+          </div>
         </div>
         {delta && <DeltaLine delta={delta} inverse={inverse} comparison={comparison} />}
       </CardContent>

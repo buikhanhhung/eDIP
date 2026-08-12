@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type OpenAI from 'openai';
 import type { EnvConfig } from '@config/env.config';
 import type { ChatMessage, ILlmService, ToolSpec } from '@infrastructure/ai/ai.port';
+import { TokenMeterService } from '@infrastructure/ai/token-meter.service';
 import { assertOpenAiConfigured, createOpenAiClient } from './openai-client';
 
 const DEFAULT_MAX_TOKENS = 4096;
@@ -14,7 +15,10 @@ export class OpenAiLlmService implements ILlmService {
   private readonly client: OpenAI;
   private readonly model: string;
 
-  constructor(private readonly config: ConfigService<EnvConfig, true>) {
+  constructor(
+    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly meter: TokenMeterService,
+  ) {
     this.client = createOpenAiClient(config);
     this.model = this.config.get('OPENAI_LLM_MODEL', { infer: true });
   }
@@ -27,6 +31,15 @@ export class OpenAiLlmService implements ILlmService {
       messages: messages.map((message) => ({ role: message.role, content: message.content })),
       max_completion_tokens: maxTokens,
       temperature: DEFAULT_TEMPERATURE,
+    });
+
+    // A plain completion is only used for answering a question.
+    this.meter.record({
+      provider: 'openai',
+      model: this.model,
+      purpose: 'answer',
+      inputTokens: response.usage?.prompt_tokens,
+      outputTokens: response.usage?.completion_tokens,
     });
 
     return response.choices[0]?.message?.content?.trim() ?? '';
@@ -58,6 +71,17 @@ export class OpenAiLlmService implements ILlmService {
           schema: tool.inputSchema,
         },
       },
+    });
+
+    // Metered before the content checks: a refused or truncated response still
+    // consumed the prompt, and skipping those calls would make the spend look
+    // smaller every time something went wrong.
+    this.meter.record({
+      provider: 'openai',
+      model: this.model,
+      purpose: this.meter.purposeForTool(tool.name),
+      inputTokens: response.usage?.prompt_tokens,
+      outputTokens: response.usage?.completion_tokens,
     });
 
     const choice = response.choices[0];

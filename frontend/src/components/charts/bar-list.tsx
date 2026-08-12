@@ -16,6 +16,13 @@ interface Props {
   empty?: string;
   /** Adds each row's share of the total after its value. */
   showPercent?: boolean;
+  /**
+   * `stacked` puts the label and value on one line with the bar beneath.
+   *
+   * Needed in a narrow card: inline, the label and two number columns leave the
+   * bar a few pixels wide, which encodes nothing.
+   */
+  layout?: 'inline' | 'stacked';
   /** Makes rows selectable in place, for a list that drills into a panel. */
   onSelect?: (key: string) => void;
   selectedKey?: string | null;
@@ -37,6 +44,7 @@ export function BarList({
   color = 'bg-primary-base',
   empty,
   showPercent,
+  layout = 'inline',
   onSelect,
   selectedKey,
 }: Props) {
@@ -46,32 +54,50 @@ export function BarList({
 
   const max = Math.max(...rows.map((row) => row.value), 1);
   const sum = rows.reduce((running, row) => running + row.value, 0);
+  const stacked = layout === 'stacked';
 
   return (
-    <ul className="space-y-3">
+    <ul className={stacked ? 'space-y-2.5' : 'space-y-3'}>
       {rows.map((row) => {
-        const body = (
+        const bar = (
+          <span className="block h-2 overflow-hidden rounded-full bg-bg-soft-200">
+            <span
+              className={cn('block h-full rounded-full transition-default', color)}
+              style={{ width: `${Math.max((row.value / max) * 100, 2)}%` }}
+            />
+          </span>
+        );
+
+        const percent = showPercent && (
+          <span className="w-12 shrink-0 text-right text-sm tabular-nums text-text-soft-400">
+            {sum === 0 ? '—' : `${((row.value / sum) * 100).toFixed(1)}%`}
+          </span>
+        );
+
+        const body = stacked ? (
+          <span className="block w-full space-y-1">
+            <span className="flex items-baseline gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm text-text-sub-600">{row.label}</span>
+              <span className="shrink-0 text-sm tabular-nums text-text-strong-950">{row.value}</span>
+              {percent}
+            </span>
+            {bar}
+          </span>
+        ) : (
           <>
             <span className="w-28 shrink-0 truncate text-sm text-text-sub-600">{row.label}</span>
-            <span className="h-2 flex-1 overflow-hidden rounded-full bg-bg-soft-200">
-              <span
-                className={cn('block h-full rounded-full transition-default', color)}
-                style={{ width: `${Math.max((row.value / max) * 100, 2)}%` }}
-              />
-            </span>
+            <span className="flex-1">{bar}</span>
             <span className="w-8 shrink-0 text-right text-sm tabular-nums text-text-strong-950">
               {row.value}
             </span>
-            {showPercent && (
-              <span className="w-12 shrink-0 text-right text-sm tabular-nums text-text-soft-400">
-                {sum === 0 ? '—' : `${((row.value / sum) * 100).toFixed(1)}%`}
-              </span>
-            )}
+            {percent}
           </>
         );
 
-        const interactive =
-          'flex w-full items-center gap-3 rounded-md px-2 py-1 text-left transition-default hover:bg-bg-weak-50';
+        const interactive = cn(
+          'w-full rounded-md px-2 py-1 text-left transition-default hover:bg-bg-weak-50',
+          stacked ? 'block' : 'flex items-center gap-3',
+        );
 
         return (
           <li key={row.key}>
@@ -89,7 +115,9 @@ export function BarList({
                 {body}
               </button>
             ) : (
-              <div className="flex items-center gap-3 px-2 py-1">{body}</div>
+              <div className={cn('px-2 py-1', stacked ? 'block' : 'flex items-center gap-3')}>
+                {body}
+              </div>
             )}
           </li>
         );

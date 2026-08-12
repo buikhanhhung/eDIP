@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { CITE_ACTION } from '@common/interceptors/audit.interceptor';
 import { PrismaService } from '@shared/database/prisma.service';
 import {
   delta,
@@ -15,8 +16,14 @@ const MAX_DAILY_SPAN = 92;
 /** A leaderboard is a short list. Past this it is a table nobody reads. */
 const TOP_DOCUMENTS = 8;
 
-/** Actions that mean somebody actually consumed a document. */
-const USE_ACTIONS = ['document.view', 'document.download'];
+/**
+ * Actions that mean a document was actually consumed.
+ *
+ * A citation counts: when an answer quotes a document, that document did the
+ * work, even though nobody clicked it. Leaving it out would rank a file the AI
+ * leans on constantly below one somebody opened once.
+ */
+const USE_ACTIONS = ['document.view', 'document.download', CITE_ACTION];
 
 /** Restricts a query to documents that arrived inside the window. */
 function uploadedIn(window: Window): Prisma.DocumentWhereInput {
@@ -41,16 +48,18 @@ export class OverviewStatsService {
     const window = toWindow(range);
     const previous = precedingWindow(window);
 
-    const [current, prior, byType, byTextSource, bySource, series, usage, ai] = await Promise.all([
-      this.totals(window),
-      this.totals(previous),
-      this.groupCount('documentType', window),
-      this.groupCount('textSource', window),
-      this.groupCount('source', window),
-      this.timeSeries(window),
-      this.usage(window),
-      this.queryInsights(window),
-    ]);
+    const [current, prior, byType, byTextSource, bySource, series, usage, ai, tokens] =
+      await Promise.all([
+        this.totals(window),
+        this.totals(previous),
+        this.groupCount('documentType', window),
+        this.groupCount('textSource', window),
+        this.groupCount('source', window),
+        this.timeSeries(window),
+        this.usage(window),
+        this.queryInsights(window),
+        this.tokens(window),
+      ]);
 
     return {
       range: { from: range.from, to: range.to, bucket: series.bucket },
@@ -67,6 +76,57 @@ export class OverviewStatsService {
       series: series.points,
       usage,
       ai,
+      tokens,
+    };
+  }
+
+  /**
+   * What the models were asked to do, and what it cost.
+   *
+   * Split by purpose rather than by model, because "answering questions costs
+   * more than reading scans" is actionable and "gemini-3.5-flash-lite costs
+   * everything" is not — one model does every job here.
+   *
+   * `reportedCalls` is carried per purpose so the page can be honest about
+   * coverage: Gemini reports no token counts for embeddings at all, and a zero
+   * there means unmeasured, not free. The characters sent are recorded in its
+   * place, which is a real measurement of the same work.
+   */
+  private async tokens(window: Window) {
+    const rows = await this.prisma.tokenUsage.groupBy({
+      by: ['purpose'],
+      where: { createdAt: { gte: window.start, lt: window.end } },
+      _sum: { inputTokens: true, outputTokens: true, inputChars: true },
+      _count: { _all: true },
+    });
+
+    const reported = await this.prisma.tokenUsage.groupBy({
+      by: ['purpose'],
+      where: { createdAt: { gte: window.start, lt: window.end }, reported: true },
+      _count: { _all: true },
+    });
+
+    const byPurpose = rows
+      .map((row) => ({
+        purpose: row.purpose,
+        calls: row._count._all,
+        reportedCalls: reported.find((r) => r.purpose === row.purpose)?._count._all ?? 0,
+        inputTokens: row._sum.inputTokens ?? 0,
+        outputTokens: row._sum.outputTokens ?? 0,
+        inputChars: row._sum.inputChars ?? 0,
+      }))
+      .sort((a, b) => b.inputTokens + b.outputTokens - (a.inputTokens + a.outputTokens));
+
+    const sum = (pick: (row: (typeof byPurpose)[number]) => number) =>
+      byPurpose.reduce((running, row) => running + pick(row), 0);
+
+    return {
+      byPurpose,
+      totalInput: sum((row) => row.inputTokens),
+      totalOutput: sum((row) => row.outputTokens),
+      calls: sum((row) => row.calls),
+      /** Calls whose provider reported nothing, so the totals understate them. */
+      unreportedCalls: sum((row) => row.calls - row.reportedCalls),
     };
   }
 

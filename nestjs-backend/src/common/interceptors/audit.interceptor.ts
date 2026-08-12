@@ -10,6 +10,12 @@ import { PrismaService } from '@shared/database/prisma.service';
 const MAX_META_LENGTH = 500;
 
 /**
+ * Recorded when an answer quotes a document. Exported because the overview
+ * counts it as a use of that document alongside views and downloads.
+ */
+export const CITE_ACTION = 'document.cite';
+
+/**
  * Writes an audit row after a decorated handler succeeds.
  *
  * The write is fired without being awaited and its failure is swallowed: an
@@ -59,8 +65,49 @@ export class AuditInterceptor implements NestInterceptor {
           .catch((error: unknown) => {
             this.logger.warn(`could not record ${action}: ${(error as Error).message}`);
           });
+
+        this.recordCitations(response, actorId);
       }),
     );
+  }
+
+  /**
+   * A row per document an answer actually leaned on.
+   *
+   * The convention is the response shape, not the endpoint: anything returning
+   * `citations: [{ documentId }]` has told us which documents it used, and that
+   * is a use of the document as real as opening it. Without this, a file the AI
+   * quotes in every answer looks untouched next to one somebody clicked once.
+   *
+   * Deduplicated per request — an answer citing three chunks of one contract
+   * used one contract.
+   */
+  private recordCitations(response: unknown, actorId: string | null): void {
+    if (!response || typeof response !== 'object' || !('citations' in response)) return;
+
+    const citations = (response as { citations: unknown }).citations;
+    if (!Array.isArray(citations)) return;
+
+    const documentIds = new Set(
+      citations.flatMap((citation: unknown) => {
+        const id = (citation as { documentId?: unknown })?.documentId;
+        return typeof id === 'string' ? [id] : [];
+      }),
+    );
+    if (documentIds.size === 0) return;
+
+    void this.prisma.auditLog
+      .createMany({
+        data: [...documentIds].map((targetId) => ({
+          actorId,
+          action: CITE_ACTION,
+          targetType: 'document',
+          targetId,
+        })),
+      })
+      .catch((error: unknown) => {
+        this.logger.warn(`could not record citations: ${(error as Error).message}`);
+      });
   }
 
   private responseId(response: unknown): string | null {

@@ -59,6 +59,22 @@ export interface OverviewStats {
     /** Null until audited actions start carrying a measured duration. */
     avgResponseMs: number | null;
   };
+  tokens: {
+    byPurpose: {
+      purpose: string;
+      calls: number;
+      /** Calls whose provider returned token figures. */
+      reportedCalls: number;
+      inputTokens: number;
+      outputTokens: number;
+      inputChars: number;
+    }[];
+    totalInput: number;
+    totalOutput: number;
+    calls: number;
+    /** Calls the provider reported nothing for, so the totals understate them. */
+    unreportedCalls: number;
+  };
 }
 
 /** Display labels for the document types the classifier produces. */
