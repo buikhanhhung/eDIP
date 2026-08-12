@@ -12,10 +12,9 @@ import {
   Search,
   Timer,
 } from 'lucide-react';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AreaTrend } from '@/components/charts/area-trend';
-import { BarList } from '@/components/charts/bar-list';
 import { DonutChart, type Slice } from '@/components/charts/donut-chart';
 import { DateRangePicker, rangeFor, type DateRange } from '@/components/date-range-picker';
 import { PageHeader } from '@/components/page-header';
@@ -174,27 +173,8 @@ function Overview({ data, comparison }: { data: OverviewStats; comparison: strin
           the top and end where their content ends. Stretching them to match
           would leave the shortest card mostly empty. */}
       <div className="grid items-start gap-5 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex-row items-baseline justify-between pb-2">
-            <CardTitle>Top data sources</CardTitle>
-            <CardLink to="/sources">Manage</CardLink>
-          </CardHeader>
-          <CardContent>
-            <BarList
-              rows={sourceRows}
-              showPercent
-              layout="stacked"
-              empty="Nothing was ingested in this window."
-            />
-            {/* Only connected providers appear. A row of zeros for a connector
-                nobody set up would read as a service that is failing. */}
-            <p className="mt-4 border-t border-stroke-soft-200 pt-3 text-xs text-text-soft-400">
-              Providers appear once they have contributed a document.
-            </p>
-          </CardContent>
-        </Card>
-
         <TokenUsageCard tokens={data.tokens} />
+        <TopSourcesCard rows={sourceRows} />
         <QueryInsightsCard ai={data.ai} />
       </div>
     </>
@@ -279,6 +259,91 @@ function MostUsedCard({ usage }: { usage: OverviewStats['usage'] }) {
             </div>
           </>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * One fixed colour per provider, so a source keeps its dot whatever its rank.
+ *
+ * The dot carries identity; the bar stays one hue because its length already
+ * carries the magnitude. Colouring the bars per source would spend the only
+ * free channel on information the bar has already given.
+ */
+const SOURCE_COLORS: Record<string, string> = {
+  upload: '#3b82f6',
+  google_drive: '#10b981',
+};
+
+/** Where the corpus came in from, as a named-column table. */
+function TopSourcesCard({ rows }: { rows: { key: string; label: string; value: number }[] }) {
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+  const max = Math.max(...rows.map((row) => row.value), 1);
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-baseline justify-between pb-2">
+        <CardTitle>Top data sources</CardTitle>
+        <CardLink to="/sources">Manage</CardLink>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-sm text-text-sub-600">Nothing was ingested in this window.</p>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="text-left text-subheading-xs uppercase text-text-soft-400">
+                <th className="pb-1 font-normal">Source</th>
+                <th className="pb-1 pl-2 text-right font-normal">Documents</th>
+                <th className="pb-1 pl-2 text-right font-normal">Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <Fragment key={row.key}>
+                  <tr>
+                    <td className="pt-2">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="size-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: SOURCE_COLORS[row.key] ?? '#94a3b8' }}
+                        />
+                        <span className="truncate text-sm text-text-sub-600">{row.label}</span>
+                      </span>
+                    </td>
+                    <td className="pl-2 pt-2 text-right text-sm tabular-nums text-text-strong-950">
+                      {row.value}
+                    </td>
+                    <td className="pl-2 pt-2 text-right text-sm tabular-nums text-text-soft-400">
+                      {total === 0 ? '—' : `${((row.value / total) * 100).toFixed(1)}%`}
+                    </td>
+                  </tr>
+                  {/* The bar spans the row rather than taking a fourth column.
+                      Squeezed between two number columns in a card this narrow
+                      it had 56px to work with, which is not a length anyone can
+                      compare. */}
+                  <tr>
+                    <td colSpan={3} className="pb-1 pt-1.5">
+                      <span className="block h-2 overflow-hidden rounded-full bg-bg-soft-200">
+                        <span
+                          className="block h-full rounded-full bg-primary-base"
+                          style={{ width: `${Math.max((row.value / max) * 100, 2)}%` }}
+                        />
+                      </span>
+                    </td>
+                  </tr>
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {/* Only connected providers appear. A row of zeros for a connector
+            nobody set up would read as a service that is failing. */}
+        <p className="mt-4 border-t border-stroke-soft-200 pt-3 text-xs text-text-soft-400">
+          Providers appear once they have contributed a document.
+        </p>
       </CardContent>
     </Card>
   );
