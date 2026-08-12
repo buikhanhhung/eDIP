@@ -1,6 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
+import { Sparkles } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { FileTypeChip } from '@/components/file-type-chip';
+import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -66,13 +69,11 @@ export function SearchPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Search &amp; Ask</h1>
-        <p className="text-sm text-text-sub-600">
-          Hybrid search across meaning and keywords. Queries without Vietnamese diacritics still
-          match documents that have them.
-        </p>
-      </div>
+      <PageHeader
+        icon={Sparkles}
+        title="Search & Ask"
+        description="Hybrid search across meaning and keywords. Queries without Vietnamese diacritics still match documents that have them."
+      />
 
       {/* A segmented control sized to its two labels. Stretching it across the
           page would read as a navigation bar rather than a choice of mode. */}
@@ -162,6 +163,7 @@ function SearchResults({ data }: { data: { hits: SearchHit[]; degraded: boolean 
         <Card key={hit.id}>
           <CardContent className="space-y-2 pt-6">
             <div className="flex flex-wrap items-center gap-2">
+              <FileTypeChip filename={hit.filename} />
               <Link to={`/documents/${hit.id}`} className="font-medium hover:underline">
                 {hit.title ?? hit.filename}
               </Link>

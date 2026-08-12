@@ -1,13 +1,24 @@
 import { useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import {
+  Info,
+  Lock,
+  ScanText,
+  Tags,
+  Upload as UploadIcon,
+  UploadCloud,
+  type LucideIcon,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Badge, statusVariant } from '@/components/ui/badge';
+import { PageHeader } from '@/components/page-header';
+import { StatusPill } from '@/components/status-pill';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
 import { cn, formatDate } from '@/lib/utils';
-import { statusLabel } from '@/features/documents/document-types';
+
 
 /**
  * Mirrors the server allowlist. Two copies is the cost of two deployables; the
@@ -145,12 +156,11 @@ export function UploadPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Upload documents</h1>
-        <p className="text-sm text-text-sub-600">
-          Drop files here. Text extraction, classification and metadata all run automatically.
-        </p>
-      </div>
+      <PageHeader
+        icon={UploadIcon}
+        title="Upload documents"
+        description="Drop files here. Text extraction, classification and metadata all run automatically."
+      />
 
       <div
         onDragOver={(e) => {
@@ -164,9 +174,13 @@ export function UploadPage() {
           dragging ? 'border-primary-base bg-primary-lighter' : 'border-stroke-soft-200',
         )}
       >
-        <p className="text-sm text-text-sub-600">
-          Drag files in, or pick them from your computer. Scanned PDFs and images are read with
-          vision, up to the first 5 pages.
+        <span className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-primary-lighter">
+          <UploadCloud className="size-6 text-primary-base" />
+        </span>
+        <p className="text-lg font-semibold text-text-strong-950">Drag &amp; drop files here</p>
+        <p className="mt-1 text-sm text-text-sub-600">
+          or pick them from your computer. Scanned PDFs and images are read with vision, up to the
+          first 5 pages.
         </p>
         <input
           ref={inputRef}
@@ -179,7 +193,41 @@ export function UploadPage() {
         <Button className="mt-4" disabled={busy} onClick={() => inputRef.current?.click()}>
           {busy ? 'Uploading…' : 'Choose files'}
         </Button>
+        <p className="mt-3 text-xs text-text-soft-400">
+          PDF, DOCX, XLSX, PPTX, TXT, MD, CSV, JSON, XML, HTML, PNG, JPG, WEBP · up to 20 MB each
+        </p>
       </div>
+
+      {/* What the pipeline will do, said once here rather than discovered
+          afterwards from a document that came back classified. */}
+      <Card>
+        <CardContent className="grid gap-6 pt-6 sm:grid-cols-2 lg:grid-cols-4">
+          <Capability
+            icon={ScanText}
+            tone="bg-primary-lighter text-primary-base"
+            title="Smart extraction"
+            body="Text, tables and pictures, including scans read with vision."
+          />
+          <Capability
+            icon={Tags}
+            tone="bg-success-light text-success-base"
+            title="Auto classification"
+            body="Each document is typed and tagged on the way in."
+          />
+          <Capability
+            icon={Info}
+            tone="bg-warning-light text-warning-base"
+            title="Metadata enrichment"
+            body="Parties, dates and amounts are pulled out and structured."
+          />
+          <Capability
+            icon={Lock}
+            tone="bg-danger-light text-danger-base"
+            title="Duplicate safe"
+            body="An identical file is refused before it costs a second pass."
+          />
+        </CardContent>
+      </Card>
 
       {error && (
         <p className="rounded-md bg-danger-light px-3 py-2 text-sm text-danger-base">{error}</p>
@@ -207,7 +255,7 @@ export function UploadPage() {
                       </Link>
                     )}
                     {item.documentType && <Badge variant="secondary">{item.documentType}</Badge>}
-                    <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
+                    <StatusPill status={item.status} />
                     {item.error && !refused && (
                       <span className="max-w-sm truncate text-xs text-danger-base" title={item.error}>
                         {item.error}
@@ -252,6 +300,30 @@ export function UploadPage() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+function Capability({
+  icon: Icon,
+  tone,
+  title,
+  body,
+}: {
+  icon: LucideIcon;
+  tone: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="flex gap-3">
+      <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${tone}`}>
+        <Icon className="size-4" />
+      </span>
+      <div>
+        <p className="text-sm font-medium text-text-strong-950">{title}</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-text-sub-600">{body}</p>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Badge, statusVariant } from '@/components/ui/badge';
+import { FileTypeChip } from '@/components/file-type-chip';
+import { StatusPill } from '@/components/status-pill';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
@@ -9,7 +11,7 @@ import { formatDate } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { MetadataPanel, type DocumentMetadata } from './metadata-panel';
 import { TextPreview, type HighlightSpan } from './text-preview';
-import { statusLabel, typeLabel, type DocumentListItem } from './document-types';
+import { typeLabel, type DocumentListItem } from './document-types';
 import { downloadDocument } from './download-document';
 
 interface DocumentEntity extends HighlightSpan {
@@ -68,16 +70,19 @@ export function DocumentDetailPage() {
           <Link to="/library" className="text-sm text-text-sub-600 hover:underline">
             ← Library
           </Link>
-          <h1 className="truncate text-2xl font-semibold tracking-tight">
-            {data.title ?? data.filename}
-          </h1>
+          <div className="flex items-center gap-3">
+            <FileTypeChip filename={data.filename} />
+            <h1 className="truncate text-2xl font-semibold tracking-tight">
+              {data.title ?? data.filename}
+            </h1>
+          </div>
           <p className="text-sm text-text-sub-600">
             {data.filename} · uploaded {formatDate(data.uploadedAt)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {data.documentType && <Badge variant="secondary">{typeLabel(data.documentType)}</Badge>}
-          <Badge variant={statusVariant(data.status)}>{statusLabel(data.status)}</Badge>
+          <StatusPill status={data.status} />
           {can('download') && (
             <Button
               size="sm"

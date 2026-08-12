@@ -5,10 +5,13 @@ import {
   getCoreRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Download } from 'lucide-react';
+import { Download, FolderOpen } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Badge, statusVariant } from '@/components/ui/badge';
+import { FileTypeChip } from '@/components/file-type-chip';
+import { PageHeader } from '@/components/page-header';
+import { StatusPill } from '@/components/status-pill';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import {
@@ -24,7 +27,6 @@ import { exportMetadataCsv } from '@/features/documents/download-document';
 import { useAuth } from '@/features/auth/auth-context';
 import { formatDate } from '@/lib/utils';
 import {
-  statusLabel,
   typeLabel,
   TYPE_LABELS,
   STATUS_LABELS,
@@ -51,16 +53,19 @@ const columns = [
     header: 'File',
     meta: { className: 'w-full max-w-0' },
     cell: (info) => (
-      <div className="min-w-0">
-        <Link
-          to={`/documents/${info.row.original.id}`}
-          className="block truncate font-medium text-text-strong-950 hover:text-primary-base hover:underline"
-        >
-          {info.getValue()}
-        </Link>
-        {info.row.original.title && (
-          <p className="truncate text-xs text-text-soft-400">{info.row.original.title}</p>
-        )}
+      <div className="flex min-w-0 items-center gap-3">
+        <FileTypeChip filename={info.getValue()} />
+        <div className="min-w-0">
+          <Link
+            to={`/documents/${info.row.original.id}`}
+            className="block truncate font-medium text-text-strong-950 hover:text-primary-base hover:underline"
+          >
+            {info.getValue()}
+          </Link>
+          {info.row.original.title && (
+            <p className="truncate text-xs text-text-soft-400">{info.row.original.title}</p>
+          )}
+        </div>
       </div>
     ),
   }),
@@ -79,7 +84,7 @@ const columns = [
     meta: { className: 'max-w-[16rem]' },
     cell: (info) => (
       <div className="flex items-center gap-2">
-        <Badge variant={statusVariant(info.getValue())}>{statusLabel(info.getValue())}</Badge>
+        <StatusPill status={info.getValue()} />
         {info.row.original.error && (
           <span className="truncate text-xs text-danger-base" title={info.row.original.error}>
             {info.row.original.error}
@@ -144,13 +149,18 @@ export function LibraryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
-          <p className="text-sm text-text-sub-600">
-            {data ? `${data.total} documents` : 'Loading…'}
-          </p>
-        </div>
+      <PageHeader
+        icon={FolderOpen}
+        title="Library"
+        description="Manage and browse all your documents in one place."
+      />
+
+      {/* Count and controls on one line, under the heading: the filters act on
+          the table below them, not on the page's identity above. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-text-sub-600">
+          {data ? `${data.total} documents` : 'Loading…'}
+        </p>
 
         <div className="flex flex-wrap items-center gap-2">
           <Input

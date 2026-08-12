@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Cloud, FileText, Folder, Home } from 'lucide-react';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -122,13 +123,11 @@ export function SourcesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Sources</h1>
-        <p className="text-sm text-text-sub-600">
-          Import documents straight from a connected account. Google Docs, Sheets and Slides are
-          converted to Office formats on the way in, so their tables survive.
-        </p>
-      </div>
+      <PageHeader
+        icon={Cloud}
+        title="Sources"
+        description="Import documents straight from a connected account. Google Docs, Sheets and Slides are converted to Office formats on the way in, so their tables survive."
+      />
 
       {callbackError && (
         <p className="rounded-md bg-danger-light px-3 py-2 text-sm text-danger-base">

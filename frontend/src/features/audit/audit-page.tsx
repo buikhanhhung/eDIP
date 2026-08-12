@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { ScrollText } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -44,10 +46,11 @@ export function AuditPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Activity log</h1>
-        <p className="text-sm text-text-sub-600">{data.total} entries</p>
-      </div>
+      <PageHeader
+        icon={ScrollText}
+        title="Activity log"
+        description={`Every action recorded in the system — ${data.total} entries in total.`}
+      />
 
       <div className="overflow-hidden rounded-lg border border-stroke-soft-200 bg-bg-white-0 shadow-soft">
         <Table>

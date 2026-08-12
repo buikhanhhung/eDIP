@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
+import { AlertCircle, CheckCircle2, FileText, LayoutDashboard, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Badge, statusVariant } from '@/components/ui/badge';
+import { PageHeader } from '@/components/page-header';
+import { StatusPill } from '@/components/status-pill';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiClient } from '@/lib/api-client';
 import { statusLabel, typeLabel, type DocumentStats } from '@/features/documents/document-types';
@@ -22,15 +25,16 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-        <p className="text-sm text-text-sub-600">Everything ingested into the platform so far.</p>
-      </div>
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Overview"
+        description="Everything ingested into the platform so far."
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total documents" value={data.total} />
-        <StatCard label="Processed" value={completed} />
-        <StatCard label="Failed" value={failed} tone={failed > 0 ? 'destructive' : undefined} />
+        <StatCard icon={FileText} label="Total documents" value={data.total} tone="primary" />
+        <StatCard icon={CheckCircle2} label="Processed" value={completed} tone="success" />
+        <StatCard icon={AlertCircle} label="Failed" value={failed} tone="danger" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -68,9 +72,7 @@ export function DashboardPage() {
           <CardContent className="flex flex-wrap gap-2">
             {Object.entries(data.byStatus).map(([status, count]) => (
               <Link key={status} to={`/library?status=${encodeURIComponent(status)}`}>
-                <Badge variant={statusVariant(status)}>
-                  {statusLabel(status)} · {count}
-                </Badge>
+                <StatusPill status={status} label={`${statusLabel(status)} · ${count}`} />
               </Link>
             ))}
           </CardContent>
@@ -80,30 +82,34 @@ export function DashboardPage() {
   );
 }
 
+/** Tint carries the meaning; the number stays the same weight in all three. */
+const TONES = {
+  primary: 'bg-primary-lighter text-primary-base',
+  success: 'bg-success-light text-success-base',
+  danger: 'bg-danger-light text-danger-base',
+} as const;
+
 function StatCard({
+  icon: Icon,
   label,
   value,
   tone,
 }: {
+  icon: LucideIcon;
   label: string;
   value: number;
-  tone?: 'destructive';
+  tone: keyof typeof TONES;
 }) {
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle>{label}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p
-          className={
-            tone === 'destructive'
-              ? 'text-3xl font-semibold tabular-nums text-danger-base'
-              : 'text-3xl font-semibold tabular-nums'
-          }
-        >
-          {value}
-        </p>
+      <CardContent className="flex items-center gap-4 pt-6">
+        <span className={cn('grid size-12 shrink-0 place-items-center rounded-full', TONES[tone])}>
+          <Icon className="size-5" />
+        </span>
+        <div>
+          <p className="text-sm text-text-sub-600">{label}</p>
+          <p className="text-3xl font-semibold tabular-nums text-text-strong-950">{value}</p>
+        </div>
       </CardContent>
     </Card>
   );

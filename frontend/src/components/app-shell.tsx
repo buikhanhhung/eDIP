@@ -66,9 +66,7 @@ export function AppShell() {
     <div className="min-h-screen bg-bg-weak-50">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-stroke-soft-200 bg-bg-white-0 lg:flex">
         <div className="flex h-16 items-center gap-2.5 px-5">
-          <span className="grid size-8 place-items-center rounded-lg bg-primary-base text-sm font-semibold text-text-white-0">
-            e
-          </span>
+          <img src="/ecv-mark.png" alt="" className="size-9 shrink-0 rounded-lg object-cover" />
           <div className="leading-tight">
             <p className="text-sm font-semibold text-text-strong-950">eDIP</p>
             <p className="text-[11px] text-text-soft-400">Document Intelligence</p>
@@ -119,9 +117,7 @@ export function AppShell() {
         {user && (
           <div className="border-t border-stroke-soft-200 p-3">
             <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-lighter text-xs font-semibold uppercase text-primary-base">
-                {user.email.slice(0, 2)}
-              </span>
+              <img src="/ecv-mark.png" alt="" className="size-8 shrink-0 rounded-full object-cover" />
               <div className="min-w-0 flex-1 leading-tight">
                 <p className="truncate text-[13px] font-medium text-text-strong-950">
                   {user.email.split('@')[0]}
@@ -146,9 +142,7 @@ export function AppShell() {
       {/* Below lg the sidebar is a top bar: the same items, laid out to scroll
           sideways rather than squeeze. */}
       <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-stroke-soft-200 bg-bg-white-0 px-4 py-2.5 lg:hidden">
-        <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary-base text-xs font-semibold text-text-white-0">
-          e
-        </span>
+        <img src="/ecv-mark.png" alt="" className="size-7 shrink-0 rounded-lg object-cover" />
         <nav className="flex flex-1 gap-1 overflow-x-auto">
           {groups.flatMap((group) => group.items).map((item) => (
             <NavLink

@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import { Network } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -109,16 +111,20 @@ export function GraphPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Knowledge graph</h1>
-          <p className="text-sm text-text-sub-600">
+      <PageHeader
+        icon={Network}
+        title="Knowledge graph"
+        description={
+          <>
             {visible.nodes.length} entities · {visible.edges.length} relations
-            {truncated && ` · showing the ${data!.nodes.length} best-connected of ${data!.totalNodes}`}
+            {truncated &&
+              ` · showing the ${data!.nodes.length} best-connected of ${data!.totalNodes}`}
             {' · '}hover to isolate a neighbourhood, double-click to zoom into it
-          </p>
-        </div>
+          </>
+        }
+      />
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Select
             className="w-52"
