@@ -4,14 +4,30 @@ import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Select } from '@/components/ui/input';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
-import { ENTITY_COLORS, GraphCanvas, type GraphEdge, type GraphPayload } from './graph-canvas';
+import {
+  ENTITY_COLORS,
+  GraphCanvas,
+  type GraphEdge,
+  type GraphLayout,
+  type GraphPayload,
+} from './graph-canvas';
 import { NodeDrawer } from './node-drawer';
 
 type GraphEdgeData = GraphEdge['data'];
 
-const ENTITY_TYPES = ['company', 'person', 'project', 'contract', 'invoice', 'department'] as const;
+const ENTITY_TYPES = [
+  'company',
+  'person',
+  'project',
+  'contract',
+  'invoice',
+  'department',
+  'date',
+  'amount',
+] as const;
 
 const TYPE_LABELS: Record<string, string> = {
   company: 'Company',
@@ -20,40 +36,44 @@ const TYPE_LABELS: Record<string, string> = {
   contract: 'Contract',
   invoice: 'Invoice',
   department: 'Department',
+  date: 'Date',
+  amount: 'Amount',
+};
+
+const LAYOUT_LABELS: Record<GraphLayout, string> = {
+  force: 'Force-directed',
+  concentric: 'Concentric',
+  circle: 'Circle',
 };
 
 export function GraphPage() {
-  // 2 by default in the UI, while the API defaults to 1 — a graph where every
-  // one-off name is a node is unreadable on a projector.
-  const [minShared, setMinShared] = useState(2);
   const [types, setTypes] = useState<string[]>([...ENTITY_TYPES]);
-  const [showRelations, setShowRelations] = useState(true);
-  const [selected, setSelected] = useState<{ id: string; kind: string; label: string } | null>(null);
+  const [relationType, setRelationType] = useState('');
+  const [layout, setLayout] = useState<GraphLayout>('force');
+  const [selected, setSelected] = useState<{ id: string; label: string } | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdgeData | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['graph', minShared, showRelations],
+    queryKey: ['graph', relationType],
     queryFn: async () =>
       (
         await apiClient.get<GraphPayload>('/graph', {
-          params: { minShared, relations: showRelations },
+          params: relationType ? { relationTypes: relationType } : {},
         })
       ).data,
   });
 
   /**
-   * Type filtering and neighbourhood focus both run here, on data already in
-   * the page — neither needs a round trip, because `getGraph` already returns
-   * every edge touching the documents on screen.
+   * Type filtering and neighbourhood focus both run on data already in the
+   * page — neither needs a round trip, because the payload already carries
+   * every relation among the entities on screen.
    */
-  const visible = useMemo<GraphPayload>(() => {
+  const visible = useMemo(() => {
     if (!data) return { nodes: [], edges: [] };
 
     const allowed = new Set(
-      data.nodes
-        .filter((node) => node.data.kind === 'document' || types.includes(node.data.type ?? ''))
-        .map((node) => node.data.id),
+      data.nodes.filter((node) => types.includes(node.data.type)).map((node) => node.data.id),
     );
 
     let edges = data.edges.filter(
@@ -69,18 +89,16 @@ export function GraphPage() {
       edges = edges.filter(
         (edge) => neighbours.has(edge.data.source) && neighbours.has(edge.data.target),
       );
-      return {
-        nodes: data.nodes.filter((node) => neighbours.has(node.data.id)),
-        edges,
-      };
+      return { nodes: data.nodes.filter((node) => neighbours.has(node.data.id)), edges };
     }
 
+    // An entity whose every relation was filtered out has nothing left to say
+    // on a canvas that draws only relations.
     const connected = new Set(edges.flatMap((edge) => [edge.data.source, edge.data.target]));
-    return {
-      nodes: data.nodes.filter((node) => connected.has(node.data.id)),
-      edges,
-    };
+    return { nodes: data.nodes.filter((node) => connected.has(node.data.id)), edges };
   }, [data, types, focused]);
+
+  const truncated = data ? data.totalNodes > data.nodes.length : false;
 
   return (
     <div className="space-y-6">
@@ -88,32 +106,36 @@ export function GraphPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Knowledge graph</h1>
           <p className="text-sm text-text-sub-600">
-            {visible.nodes.length} nodes · {visible.edges.length} links · hover a node to isolate
-            its neighbourhood, double-click to zoom into it
+            {visible.nodes.length} entities · {visible.edges.length} relations
+            {truncated && ` · showing the ${data!.nodes.length} best-connected of ${data!.totalNodes}`}
+            {' · '}hover to isolate a neighbourhood, double-click to zoom into it
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-text-sub-600">
-            <input
-              type="checkbox"
-              checked={showRelations}
-              onChange={(e) => setShowRelations(e.target.checked)}
-            />
-            Show relations
-          </label>
-
-          <label className="flex items-center gap-2 text-sm text-text-sub-600">
-            Shared documents
-            <input
-              type="range"
-              min={1}
-              max={4}
-              value={minShared}
-              onChange={(e) => setMinShared(Number(e.target.value))}
-            />
-            <span className="w-4 tabular-nums text-text-strong-950">{minShared}</span>
-          </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            className="w-52"
+            value={relationType}
+            onChange={(e) => setRelationType(e.target.value)}
+          >
+            <option value="">All relations</option>
+            {(data?.relationTypes ?? []).map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </Select>
+          <Select
+            className="w-40"
+            value={layout}
+            onChange={(e) => setLayout(e.target.value as GraphLayout)}
+          >
+            {Object.entries(LAYOUT_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
           {focused && (
             <Button variant="outline" size="sm" onClick={() => setFocused(null)}>
               Clear focus
@@ -154,10 +176,6 @@ export function GraphPage() {
             </button>
           );
         })}
-        <span className="ml-1 flex items-center gap-1.5 text-xs text-text-soft-400">
-          <span className="h-2.5 w-4 rounded-sm border border-primary-base bg-primary-lighter" />
-          Document
-        </span>
       </div>
 
       {isLoading && <p className="text-sm text-text-sub-600">Building the graph…</p>}
@@ -167,13 +185,18 @@ export function GraphPage() {
         <Card>
           <CardContent className="p-0">
             {visible.nodes.length === 0 ? (
-              <p className="p-10 text-center text-sm text-text-sub-600">
-                No nodes match the current filters. Lower “shared documents” to 1 to see
-                everything.
-              </p>
+              <div className="space-y-1 p-10 text-center">
+                <p className="text-sm font-medium text-text-strong-950">No relations to show</p>
+                <p className="text-sm text-text-sub-600">
+                  {data.totalNodes === 0
+                    ? 'No relationships have been extracted yet. Upload a document to populate the graph.'
+                    : 'Every relation is filtered out. Turn an entity type back on, or clear the relation filter.'}
+                </p>
+              </div>
             ) : (
               <GraphCanvas
                 payload={visible}
+                layout={layout}
                 onSelect={(node) => setSelected(node)}
                 onFocus={(id) => setFocused(id)}
                 onSelectEdge={(edge) => setSelectedEdge(edge)}
@@ -190,7 +213,7 @@ export function GraphPage() {
               <div className="min-w-0">
                 <Badge>{selectedEdge.label}</Badge>
                 <p className="mt-2 text-sm text-text-sub-600">
-                  The sentence this link was read from:
+                  The sentence this relation was read from:
                 </p>
                 {/* The evidence is what makes a typed edge checkable rather
                     than something the reader has to take on trust. */}
