@@ -2,34 +2,91 @@
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * Design tokens ported from ECVBot (AlignUI): a neutral ramp and a blue ramp,
+ * then semantic names layered on top. Components never reach for a raw ramp
+ * value — they ask for `bg-weak-50` or `text-sub-600`, so a palette change is
+ * one edit here rather than a search across the app.
+ *
+ * Light only, on purpose. The product is shown on a projector in a lit room.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
-    --radius: 0.5rem;
+    /* Neutral ramp — a touch of blue in the greys so they sit with the accent
+       rather than beside it. */
+    --neutral-0: 0 0% 100%;
+    --neutral-50: 220 33% 98%;
+    --neutral-100: 220 27% 96%;
+    --neutral-200: 220 20% 91%;
+    --neutral-300: 219 17% 84%;
+    --neutral-400: 219 13% 65%;
+    --neutral-500: 220 11% 51%;
+    --neutral-600: 221 15% 40%;
+    --neutral-700: 222 19% 30%;
+    --neutral-800: 223 24% 21%;
+    --neutral-950: 226 35% 12%;
+
+    --blue-50: 214 100% 97%;
+    --blue-100: 214 95% 93%;
+    --blue-200: 213 97% 87%;
+    --blue-500: 217 91% 60%;
+    --blue-600: 221 83% 53%;
+    --blue-700: 224 76% 48%;
+
+    /* Semantic — the only names components use. */
+    --bg-strong-950: var(--neutral-950);
+    --bg-surface-800: var(--neutral-800);
+    --bg-sub-300: var(--neutral-300);
+    --bg-soft-200: var(--neutral-200);
+    --bg-weak-50: var(--neutral-50);
+    --bg-white-0: var(--neutral-0);
+
+    --text-strong-950: var(--neutral-950);
+    --text-sub-600: var(--neutral-600);
+    --text-soft-400: var(--neutral-400);
+    --text-disabled-300: var(--neutral-300);
+    --text-white-0: var(--neutral-0);
+
+    --stroke-strong-950: var(--neutral-950);
+    --stroke-sub-300: var(--neutral-300);
+    --stroke-soft-200: var(--neutral-200);
+    --stroke-white-0: var(--neutral-0);
+
+    --primary-base: var(--blue-600);
+    --primary-dark: var(--blue-700);
+    --primary-light: var(--blue-100);
+    --primary-lighter: var(--blue-50);
+
+    /* State colours, kept separate from the accent so "this needs attention"
+       never depends on brand hue. */
+    --success-base: 160 84% 32%;
+    --success-light: 152 76% 94%;
+    --warning-base: 32 95% 44%;
+    --warning-light: 48 96% 89%;
+    --danger-base: 0 72% 51%;
+    --danger-light: 0 86% 96%;
+
+    --radius: 0.625rem;
   }
 
   * {
-    @apply border-border;
+    @apply border-stroke-soft-200;
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-bg-weak-50 text-text-strong-950 antialiased;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  /* Every focusable thing shows where it is, including when the pointer never
+     touched it. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-base ring-offset-2 ring-offset-background;
+  }
+}
+
+@layer utilities {
+  .transition-default {
+    @apply transition-all duration-200 ease-out;
   }
 }

@@ -37,67 +37,112 @@ interface Props {
   onSelectEdge?: (edge: GraphEdge['data']) => void;
 }
 
+/**
+ * Colour carries meaning, not decoration: documents share the interface accent,
+ * entities are keyed by their own type, and everything else — edges, labels,
+ * the canvas — stays quiet so the two node families read at a glance.
+ */
+export const ENTITY_COLORS: Record<string, string> = {
+  company: '#2563eb',
+  person: '#0d9488',
+  project: '#7c3aed',
+  contract: '#c2410c',
+  invoice: '#a16207',
+  department: '#0284c7',
+};
+
+const LABEL_BASE = {
+  label: 'data(label)',
+  color: '#3d4657',
+  'font-size': 10,
+  'font-weight': 500,
+  'text-valign': 'bottom' as const,
+  'text-margin-y': 7,
+  'text-max-width': '92px',
+  'text-wrap': 'ellipsis' as const,
+  'text-background-color': '#ffffff',
+  'text-background-opacity': 0.9,
+  'text-background-padding': '2px',
+  'text-background-shape': 'roundrectangle' as const,
+};
+
 const STYLESHEET: cytoscape.StylesheetJson = [
   {
+    // Documents read as pages: a tall rounded card, filled softly with a firm
+    // border, so they never compete with the entity dots for attention.
     selector: 'node[kind="document"]',
     style: {
+      ...LABEL_BASE,
       shape: 'round-rectangle',
-      'background-color': '#2563eb',
-      label: 'data(label)',
-      color: '#0f172a',
-      'font-size': 9,
-      'text-valign': 'bottom',
-      'text-margin-y': 4,
-      'text-max-width': '90px',
-      'text-wrap': 'ellipsis',
-      width: 22,
-      height: 16,
+      'background-color': '#eff6ff',
+      'border-width': 1.5,
+      'border-color': '#2563eb',
+      color: '#1e3a8a',
+      'font-weight': 600,
+      width: 34,
+      height: 26,
     },
   },
   {
     selector: 'node[kind="entity"]',
     style: {
+      ...LABEL_BASE,
       shape: 'ellipse',
-      'background-color': '#f59e0b',
-      label: 'data(label)',
-      color: '#0f172a',
-      'font-size': 9,
-      'text-valign': 'bottom',
-      'text-margin-y': 4,
-      'text-max-width': '90px',
-      'text-wrap': 'ellipsis',
-      width: 14,
-      height: 14,
+      // Size follows reach: an entity tying six documents together should be
+      // findable without reading a single label.
+      width: 'mapData(documentCount, 1, 9, 16, 34)',
+      height: 'mapData(documentCount, 1, 9, 16, 34)',
+      'background-color': '#94a3b8',
+      'border-width': 2,
+      'border-color': '#ffffff',
     },
   },
+  ...Object.entries(ENTITY_COLORS).map(([type, color]) => ({
+    selector: `node[kind="entity"][type="${type}"]`,
+    style: { 'background-color': color },
+  })),
   {
     // Document → entity. Kept visually quiet: it says only "mentioned here".
     selector: 'edge[kind="mentions"]',
-    style: { width: 1, 'line-color': '#cbd5e1', 'curve-style': 'bezier' },
+    style: {
+      width: 1,
+      'line-color': '#dbe1ea',
+      'curve-style': 'bezier',
+      opacity: 0.9,
+    },
   },
   {
     // Entity → entity, extracted from a sentence. Directed and labelled,
     // because unlike a mention edge it makes a claim.
     selector: 'edge[kind="relates"]',
     style: {
-      width: 2,
-      'line-color': '#6366f1',
-      'target-arrow-color': '#6366f1',
+      width: 1.8,
+      'line-color': '#7c3aed',
+      'target-arrow-color': '#7c3aed',
       'target-arrow-shape': 'triangle',
-      'arrow-scale': 0.8,
+      'arrow-scale': 0.9,
       'curve-style': 'bezier',
+      'control-point-step-size': 50,
       label: 'data(label)',
-      'font-size': 7,
-      color: '#4338ca',
+      'font-size': 8,
+      'font-weight': 600,
+      color: '#5b21b6',
       'text-background-color': '#ffffff',
-      'text-background-opacity': 0.85,
-      'text-background-padding': '2px',
+      'text-background-opacity': 0.94,
+      'text-background-padding': '3px',
+      'text-background-shape': 'roundrectangle',
       'text-rotation': 'autorotate',
     },
   },
   {
     selector: 'node:selected',
-    style: { 'border-width': 3, 'border-color': '#0f172a' },
+    style: { 'border-width': 3, 'border-color': '#111827', 'overlay-opacity': 0 },
+  },
+  {
+    // Hovering fades everything unrelated, which is the only way a reader
+    // follows one thread through a hairball this dense.
+    selector: '.dimmed',
+    style: { opacity: 0.15, 'text-opacity': 0.1 },
   },
 ];
 
@@ -120,9 +165,22 @@ export function GraphCanvas({ payload, onSelect, onFocus, onSelectEdge }: Props)
       container: container.current,
       elements,
       style: STYLESHEET,
-      layout: { name: 'cose', animate: false, padding: 30, nodeRepulsion: () => 8000 },
+      layout: {
+        name: 'cose',
+        animate: false,
+        padding: 40,
+        // Spread further than the default: labels sit under the nodes, and at
+        // tighter spacing they overlap into an unreadable mat.
+        nodeRepulsion: () => 45000,
+        idealEdgeLength: () => 150,
+        nodeOverlap: 40,
+        gravity: 0.35,
+        componentSpacing: 120,
+        numIter: 1500,
+      } as cytoscape.LayoutOptions,
       minZoom: 0.2,
       maxZoom: 3,
+      wheelSensitivity: 0.2,
     });
 
     cy.on('tap', 'node', (event) => {
@@ -132,6 +190,14 @@ export function GraphCanvas({ payload, onSelect, onFocus, onSelectEdge }: Props)
     cy.on('dbltap', 'node', (event) => onFocus(event.target.id()));
     cy.on('tap', 'edge[kind="relates"]', (event) => onSelectEdge?.(event.target.data()));
 
+    // Hover isolates a neighbourhood without changing the layout, so the reader
+    // keeps their mental map of where things are.
+    cy.on('mouseover', 'node', (event) => {
+      const keep = event.target.closedNeighborhood();
+      cy.elements().difference(keep).addClass('dimmed');
+    });
+    cy.on('mouseout', 'node', () => cy.elements().removeClass('dimmed'));
+
     cyRef.current = cy;
     return () => {
       cy.destroy();
@@ -139,5 +205,5 @@ export function GraphCanvas({ payload, onSelect, onFocus, onSelectEdge }: Props)
     };
   }, [payload, onSelect, onFocus, onSelectEdge]);
 
-  return <div ref={container} className="h-[32rem] w-full" />;
+  return <div ref={container} className="h-[34rem] w-full rounded-lg bg-bg-white-0" />;
 }

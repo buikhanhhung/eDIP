@@ -3,15 +3,17 @@ import type { HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+  // A badge is a label, not a paragraph: it keeps one line and lets the column
+  // around it be the thing that gives way.
+  'inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium',
   {
     variants: {
       variant: {
-        default: 'border-transparent bg-primary/10 text-primary',
-        secondary: 'border-transparent bg-secondary text-secondary-foreground',
-        success: 'border-transparent bg-emerald-100 text-emerald-800',
-        destructive: 'border-transparent bg-destructive/10 text-destructive',
-        outline: 'text-foreground',
+        default: 'border-transparent bg-primary-lighter text-primary-dark',
+        secondary: 'border-stroke-soft-200 bg-bg-weak-50 text-text-sub-600',
+        success: 'border-transparent bg-success-light text-success-base',
+        destructive: 'border-transparent bg-danger-light text-danger-base',
+        outline: 'border-stroke-soft-200 text-text-sub-600',
       },
     },
     defaultVariants: { variant: 'default' },

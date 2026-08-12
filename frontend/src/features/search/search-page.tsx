@@ -70,15 +70,19 @@ export function SearchPage() {
         </p>
       </div>
 
-      <div className="flex gap-1 rounded-lg bg-secondary p-1">
+      {/* A segmented control sized to its two labels. Stretching it across the
+          page would read as a navigation bar rather than a choice of mode. */}
+      <div className="flex w-fit gap-1 rounded-lg border border-stroke-soft-200 bg-bg-weak-50 p-1">
         {(['search', 'ask'] as const).map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => setMode(value)}
             className={cn(
-              'flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-              mode === value ? 'bg-background shadow-sm' : 'text-muted-foreground',
+              'rounded-md px-6 py-1.5 text-sm font-medium transition-default',
+              mode === value
+                ? 'bg-bg-white-0 text-text-strong-950 shadow-soft'
+                : 'text-text-sub-600 hover:text-text-strong-950',
             )}
           >
             {value === 'search' ? 'Tìm kiếm' : 'Hỏi AI'}

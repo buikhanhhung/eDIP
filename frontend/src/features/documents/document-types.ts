@@ -31,6 +31,7 @@ export const TYPE_LABELS: Record<string, string> = {
   policy: 'Chính sách',
   report: 'Báo cáo',
   kyc: 'Hồ sơ KYC',
+  other: 'Khác',
   unknown: 'Chưa phân loại',
 };
 

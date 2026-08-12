@@ -49,7 +49,7 @@ export function AuditPage() {
         <p className="text-sm text-muted-foreground">{data.total} bản ghi</p>
       </div>
 
-      <div className="rounded-lg border bg-background">
+      <div className="overflow-hidden rounded-lg border border-stroke-soft-200 bg-bg-white-0 shadow-soft">
         <Table>
           <TableHeader>
             <TableRow>

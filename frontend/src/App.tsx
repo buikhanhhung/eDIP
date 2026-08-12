@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { AppLayout } from '@/components/app-layout';
+import { AppShell } from '@/components/app-shell';
 import { ProtectedRoute } from '@/components/protected-route';
 import { AuthProvider } from '@/features/auth/auth-context';
 import { LoginPage } from '@/features/auth/login-page';
@@ -26,7 +26,7 @@ export default function App() {
             <Route
               element={
                 <ProtectedRoute>
-                  <AppLayout />
+                  <AppShell />
                 </ProtectedRoute>
               }
             >

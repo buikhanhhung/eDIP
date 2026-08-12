@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { apiClient } from '@/lib/api-client';
-import { GraphCanvas, type GraphEdge, type GraphPayload } from './graph-canvas';
+import { cn } from '@/lib/utils';
+import { ENTITY_COLORS, GraphCanvas, type GraphEdge, type GraphPayload } from './graph-canvas';
 import { NodeDrawer } from './node-drawer';
 
 type GraphEdgeData = GraphEdge['data'];
@@ -120,13 +121,16 @@ export function GraphPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Filter and legend in one control: the swatch that turns a type off is
+          the same swatch that says what its colour means on the canvas. */}
+      <div className="flex flex-wrap items-center gap-1.5">
         {ENTITY_TYPES.map((type) => {
           const on = types.includes(type);
           return (
             <button
               key={type}
               type="button"
+              aria-pressed={on}
               onClick={() =>
                 setTypes((current) =>
                   current.includes(type)
@@ -134,11 +138,25 @@ export function GraphPage() {
                     : [...current, type],
                 )
               }
+              className={cn(
+                'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-default',
+                on
+                  ? 'border-stroke-soft-200 bg-bg-white-0 text-text-strong-950 shadow-soft'
+                  : 'border-transparent bg-bg-white-0/50 text-text-soft-400',
+              )}
             >
-              <Badge variant={on ? 'default' : 'outline'}>{TYPE_LABELS[type]}</Badge>
+              <span
+                className="size-2.5 rounded-full transition-default"
+                style={{ backgroundColor: on ? ENTITY_COLORS[type] : '#cbd5e1' }}
+              />
+              {TYPE_LABELS[type]}
             </button>
           );
         })}
+        <span className="ml-1 flex items-center gap-1.5 text-xs text-text-soft-400">
+          <span className="h-2.5 w-4 rounded-sm border border-primary-base bg-primary-lighter" />
+          Tài liệu
+        </span>
       </div>
 
       {isLoading && <p className="text-sm text-muted-foreground">Đang dựng đồ thị…</p>}
