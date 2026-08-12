@@ -14,6 +14,7 @@ import {
   GraphCanvas,
   type GraphEdge,
   type GraphLayout,
+  type GraphNode,
   type GraphPayload,
 } from './graph-canvas';
 import { NodeDrawer } from './node-drawer';
@@ -56,7 +57,7 @@ export function GraphPage() {
   // single document, so this one actually cuts.
   const [minDocuments, setMinDocuments] = useState(1);
   const [layout, setLayout] = useState<GraphLayout>('force');
-  const [selected, setSelected] = useState<{ id: string; label: string } | null>(null);
+  const [selected, setSelected] = useState<GraphNode['data'] | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdgeData | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
 

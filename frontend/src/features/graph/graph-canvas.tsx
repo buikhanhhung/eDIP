@@ -40,7 +40,7 @@ export interface GraphPayload {
 interface Props {
   payload: Pick<GraphPayload, 'nodes' | 'edges'>;
   layout: GraphLayout;
-  onSelect: (node: { id: string; label: string }) => void;
+  onSelect: (node: GraphNode['data']) => void;
   onFocus: (id: string) => void;
   onSelectEdge?: (edge: GraphEdge['data']) => void;
 }
@@ -187,7 +187,9 @@ export function GraphCanvas({ payload, layout, onSelect, onFocus, onSelectEdge }
 
     cy.on('tap', 'node', (event) => {
       const node = event.target;
-      onSelect({ id: node.id(), label: node.data('label') });
+      // The whole node, not just its name: the drawer colours its own
+      // header by entity type and would otherwise have to guess.
+      onSelect(node.data() as GraphNode['data']);
     });
     cy.on('dbltap', 'node', (event) => onFocus(event.target.id()));
     cy.on('tap', 'edge', (event) => onSelectEdge?.(event.target.data()));
