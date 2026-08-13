@@ -10,6 +10,17 @@ import { buildSnippet } from '@features/search/snippet';
 const LANE_LIMIT = 8;
 const CONTEXT_CHUNKS = 8;
 
+/**
+ * How many documents a refusal names.
+ *
+ * The retrieval set is always full — the vector lane returns its nearest eight
+ * whether or not anything is close — so a question the corpus knows nothing
+ * about still comes back with eight documents attached. Listing all of them
+ * turns a helpful "here is what was read" into a dump of whatever happened to
+ * be least far away. The top few, in rank order, are the honest part.
+ */
+const MAX_CONSULTED = 4;
+
 /** The exact sentence the model is told to use when the context is not enough. */
 export const NO_ANSWER = 'That information is not in the document collection.';
 
@@ -21,11 +32,29 @@ export interface Citation {
   snippet: string;
 }
 
+/** A document the question was searched against, named. */
+export interface ConsultedDocument {
+  documentId: string;
+  title: string | null;
+  filename: string;
+}
+
 export interface AskResponse {
   answer: string;
   citations: Citation[];
   /** An answer that cited nothing and did not decline. Shown as a warning. */
   unsourced: boolean;
+  /**
+   * What was read on the way to a refusal, and empty otherwise.
+   *
+   * `NO_ANSWER` covers two situations that are not the same thing: retrieval
+   * found nothing at all, or it found documents the model then could not answer
+   * from. Reported identically, the second one lies — asking `ecloudvalley`
+   * returns eleven passages naming the company and still tells the reader the
+   * information is not in the collection. Carrying the documents out lets the
+   * page say what was actually read.
+   */
+  consulted: ConsultedDocument[];
 }
 
 /**
@@ -49,8 +78,10 @@ export class AskService {
   async ask(question: string): Promise<AskResponse> {
     const chunks = await this.retrieve(question);
 
+    // Nothing was retrieved, so the sentence is the literal truth here and
+    // there is no document worth naming.
     if (chunks.length === 0) {
-      return { answer: NO_ANSWER, citations: [], unsourced: false };
+      return { answer: NO_ANSWER, citations: [], unsourced: false, consulted: [] };
     }
 
     /**
@@ -91,7 +122,50 @@ export class AskService {
       this.logger.warn(`answer for "${question}" cited no source and did not decline`);
     }
 
-    return { answer, citations, unsourced };
+    // The model was handed passages and still declined. Which passages is the
+    // one useful thing to say next, so it goes back with the refusal.
+    const declined = answer.includes(NO_ANSWER);
+    const consulted = declined ? await this.documentsFor(chunks, MAX_CONSULTED) : [];
+    if (declined) {
+      this.logger.log(
+        `declined "${question}" after reading ${chunks.length} chunk(s) from ${consulted.length} document(s)`,
+      );
+    }
+
+    return { answer, citations, unsourced, consulted };
+  }
+
+  /**
+   * The distinct documents a set of chunks came from, named for display.
+   *
+   * Kept in the order the chunks were ranked rather than whatever order the
+   * database returns them: when this list is capped, the reader should lose the
+   * least relevant document, not an arbitrary one.
+   */
+  private async documentsFor(chunks: ChunkHit[], limit?: number): Promise<ConsultedDocument[]> {
+    const ranked: string[] = [];
+    for (const chunk of chunks) {
+      if (!ranked.includes(chunk.documentId)) ranked.push(chunk.documentId);
+    }
+
+    const ids = limit === undefined ? ranked : ranked.slice(0, limit);
+    if (ids.length === 0) return [];
+
+    const byId = new Map(
+      (
+        await this.prisma.document.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, title: true, filename: true },
+        })
+      ).map((document) => [document.id, document]),
+    );
+
+    return ids.flatMap((id) => {
+      const document = byId.get(id);
+      return document
+        ? [{ documentId: document.id, title: document.title, filename: document.filename }]
+        : [];
+    });
   }
 
   private async retrieve(question: string): Promise<ChunkHit[]> {
@@ -129,20 +203,16 @@ export class AskService {
   ): Promise<Citation[]> {
     if (used.length === 0) return [];
 
-    const documents = await this.prisma.document.findMany({
-      where: { id: { in: [...new Set(used.map((chunk) => chunk.documentId))] } },
-      select: { id: true, title: true, filename: true },
-    });
-    const byId = new Map(documents.map((doc) => [doc.id, doc]));
+    const byId = new Map(
+      (await this.documentsFor(used)).map((document) => [document.documentId, document]),
+    );
 
     return used.flatMap((chunk) => {
       const doc = byId.get(chunk.documentId);
       if (!doc) return [];
       return [
         {
-          documentId: doc.id,
-          title: doc.title,
-          filename: doc.filename,
+          ...doc,
           chunkId: chunk.id,
           snippet: buildSnippet(chunk.content, question).text,
         },

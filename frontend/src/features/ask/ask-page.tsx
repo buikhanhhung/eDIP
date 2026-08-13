@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Plus,
   Scale,
+  SearchX,
   Send,
   Sparkles,
   Trash2,
@@ -33,10 +34,21 @@ interface Citation {
   snippet: string;
 }
 
+interface ConsultedDocument {
+  documentId: string;
+  title: string | null;
+  filename: string;
+}
+
 interface AskResponse {
   answer: string;
   citations: Citation[];
   unsourced: boolean;
+  /**
+   * Documents that were read on the way to a refusal. Optional because entries
+   * stored by an earlier version of this page have no such field.
+   */
+  consulted?: ConsultedDocument[];
 }
 
 interface Exchange extends AskResponse {
@@ -257,6 +269,10 @@ export function AskPage() {
 }
 
 function Exchange({ exchange }: { exchange: Exchange }) {
+  // Entries stored before this field existed have none, so the refusal falls
+  // back to the plain sentence rather than crashing on a missing array.
+  const consulted = exchange.consulted ?? [];
+
   return (
     <div id={`exchange-${exchange.id}`} className="space-y-4">
       <div className="flex justify-end gap-3">
@@ -274,12 +290,20 @@ function Exchange({ exchange }: { exchange: Exchange }) {
         </span>
 
         <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-text-strong-950">
-              {withoutMarkers(exchange.answer)}
-            </p>
-            <CopyAnswer text={exchange.answer} />
-          </div>
+          {/* A refusal that read documents is not the same statement as one
+              that found nothing, and saying the second when the first happened
+              is simply untrue — the passages were there, the question was not
+              answerable from them. */}
+          {consulted.length > 0 ? (
+            <SearchedButNoAnswer documents={consulted} />
+          ) : (
+            <div className="flex items-start justify-between gap-3">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-text-strong-950">
+                {withoutMarkers(exchange.answer)}
+              </p>
+              <CopyAnswer text={exchange.answer} />
+            </div>
+          )}
 
           {exchange.unsourced && (
             <p className="flex items-start gap-2 rounded-lg bg-warning-light px-3 py-2 text-sm text-warning-base">
@@ -312,6 +336,53 @@ function Exchange({ exchange }: { exchange: Exchange }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The honest form of a refusal: the documents were found and read, and none of
+ * them answered.
+ *
+ * Toned as information rather than as an error. Nothing failed — the corpus
+ * simply does not hold the answer to what was asked, and the documents listed
+ * are the reader's next move, whether that is opening one or asking something
+ * more specific about it.
+ */
+function SearchedButNoAnswer({ documents }: { documents: ConsultedDocument[] }) {
+  return (
+    <div className="space-y-2.5 rounded-lg bg-bg-weak-50 px-3.5 py-3">
+      <div className="flex items-start gap-2">
+        <SearchX className="mt-0.5 size-4 shrink-0 text-text-soft-400" />
+        <p className="text-sm text-text-strong-950">
+          These documents were searched, but none of them answers this.
+        </p>
+      </div>
+
+      <ul className="space-y-1.5 pl-6">
+        {documents.map((document) => (
+          <li key={document.documentId}>
+            <Link
+              to={`/documents/${document.documentId}`}
+              className="block truncate text-sm text-primary-base hover:underline"
+            >
+              {document.title ?? document.filename}
+            </Link>
+            {/* The corpus can hold two files under one title. Without the
+                filename beneath it those rows are two identical links, which
+                reads as a duplicate rather than as two documents. */}
+            {document.title && (
+              <span className="block truncate text-xs text-text-soft-400">
+                {document.filename}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <p className="pl-6 text-xs text-text-soft-400">
+        Open one to check, or ask about something specific in it.
+      </p>
     </div>
   );
 }
