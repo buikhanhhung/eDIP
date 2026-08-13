@@ -1,17 +1,39 @@
-import { Body, ConflictException, Controller, Delete, Get, Post, Query, Res } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Body, Controller, Delete, Get, Post, Query, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Queue } from 'bullmq';
 import type { Response } from 'express';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { Audit } from '@common/decorators/audit.decorator';
-import { CurrentUser, Public, RequirePermission, type AuthUser } from '@common/rbac/rbac.decorators';
+import {
+  CurrentUser,
+  Public,
+  RequirePermission,
+  type AuthUser,
+} from '@common/rbac/rbac.decorators';
 import type { EnvConfig } from '@config/env.config';
-import { IngestionService } from '@features/ingestion/ingestion.service';
+import {
+  DRIVE_IMPORT_JOB,
+  DRIVE_IMPORT_JOB_OPTIONS,
+  QUEUE_NAMES,
+} from '@shared/queue/queue.constants';
+import type { DriveImportJobData } from './drive-import.consumer';
 import { GoogleDriveService } from './google-drive.service';
 
-/** Enough per press that a demo moves, few enough that the AI quota survives. */
-const MAX_FILES_PER_IMPORT = 20;
+/**
+ * The ceiling on one press, counted after folders are walked out into files.
+ *
+ * Higher than the old per-file cap because a picked folder is now expanded
+ * here rather than clicked through one file at a time — but still a ceiling:
+ * every file queues an ingest behind it, and that pipeline spends AI quota.
+ */
+const MAX_FILES_PER_IMPORT = 200;
 
+/** Deep enough for any real filing, shallow enough to bound the walk. */
+const MAX_FOLDER_DEPTH = 10;
+
+/** What the picker hands back, folders included. */
 const importSchema = z.object({
   files: z
     .array(
@@ -22,6 +44,8 @@ const importSchema = z.object({
       }),
     )
     .min(1)
+    // Bounds the *selection*, not the import: one folder can stand for
+    // hundreds of files, and that total is checked after expansion.
     .max(MAX_FILES_PER_IMPORT),
 });
 
@@ -31,14 +55,18 @@ class ImportDto extends createZodDto(importSchema) {}
 export class ConnectorsController {
   constructor(
     private readonly drive: GoogleDriveService,
-    private readonly ingestion: IngestionService,
     private readonly config: ConfigService<EnvConfig, true>,
+    @InjectQueue(QUEUE_NAMES.DRIVE_IMPORT)
+    private readonly driveImports: Queue<DriveImportJobData>,
   ) {}
 
   @RequirePermission('upload')
   @Get('status')
   async status(@CurrentUser() user: AuthUser) {
-    return { configured: this.drive.configured, ...(await this.drive.getConnection(user.id)) };
+    return {
+      configured: this.drive.configured,
+      ...(await this.drive.getConnection(user.id)),
+    };
   }
 
   /** Returns the URL rather than redirecting: the caller is fetch, not a form. */
@@ -94,39 +122,49 @@ export class ConnectorsController {
   }
 
   /**
-   * Pulls each file and hands it to the same upload path a browser uses, so an
-   * import gets the allowlist, the duplicate check and the ingest queue
-   * without a second implementation of any of them.
+   * Everything the browser needs to open Google's own picker.
    *
-   * One file failing does not stop the rest: a selection of twenty should not
-   * be lost to one document whose sharing was revoked this morning.
+   * Behind the same permission as an import, because it carries a Drive access
+   * token: the picker runs in the page and will not open without one.
+   */
+  @RequirePermission('upload')
+  @Get('picker-config')
+  pickerConfig(@CurrentUser() user: AuthUser) {
+    return this.drive.pickerConfig(user.id);
+  }
+
+  /**
+   * Walks the picked selection out into files and queues one job per file.
+   *
+   * Returns as soon as the work is scheduled rather than when it is done. A
+   * picked folder can hold hundreds of files, and fetching them inside this
+   * request would be a request that times out — so the files arrive in the
+   * library over the following minutes instead, the same way an upload does.
+   *
+   * Nothing is imported through a second path: each job ends in the same
+   * `ingestion.upload` a dropped file uses, so the allowlist, the duplicate
+   * check and the ingest queue all still apply.
    */
   @Audit('document.import')
   @RequirePermission('upload')
   @Post('import')
   async import(@CurrentUser() user: AuthUser, @Body() body: ImportDto) {
-    const results = [];
+    const { files, skipped } = await this.drive.expandSelection(user.id, body.files, {
+      maxFiles: MAX_FILES_PER_IMPORT,
+      maxDepth: MAX_FOLDER_DEPTH,
+    });
 
-    for (const file of body.files) {
-      try {
-        const { filename, bytes } = await this.drive.fetchFile(user.id, file);
-        const document = await this.ingestion.upload(
-          { originalname: filename, buffer: bytes, size: bytes.length },
-          user.id,
-          'google_drive',
-        );
-        results.push({ driveId: file.id, name: file.name, status: 'queued', document });
-      } catch (failure) {
-        const duplicate = failure instanceof ConflictException;
-        results.push({
-          driveId: file.id,
-          name: file.name,
-          status: duplicate ? 'duplicate' : 'failed',
-          error: failure instanceof Error ? failure.message : 'import failed',
-        });
-      }
-    }
+    await this.driveImports.addBulk(
+      files.map((file) => ({
+        name: DRIVE_IMPORT_JOB,
+        data: {
+          ownerId: user.id,
+          file: { id: file.id, name: file.name, mimeType: file.mimeType },
+        },
+        opts: DRIVE_IMPORT_JOB_OPTIONS,
+      })),
+    );
 
-    return { results };
+    return { queued: files.length, skipped };
   }
 }

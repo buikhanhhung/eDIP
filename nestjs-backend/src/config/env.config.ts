@@ -78,6 +78,14 @@ export const envSchema = z.object({
   ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, 'must be 64 hex characters').optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  /**
+   * Browser key for the Google Picker, which refuses to render without one.
+   *
+   * Public by design — it reaches the page and is restricted in the Google
+   * console by HTTP referrer, not by secrecy. Separate from the client secret,
+   * which never leaves this process.
+   */
+  GOOGLE_API_KEY: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().default('http://localhost:3000/connectors/google/callback'),
 
   SEED_ADMIN_EMAIL: z.string().email().default('admin@ecloudvalley.demo'),

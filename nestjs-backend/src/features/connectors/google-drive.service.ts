@@ -1,10 +1,16 @@
-import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { SourceConnection } from '@prisma/client';
 import { EncryptionService } from '@common/crypto/encryption.service';
 import type { EnvConfig } from '@config/env.config';
 import { PrismaService } from '@shared/database/prisma.service';
-import { folderQuery, planImport, type DriveFile } from './google-drive-files';
+import { FOLDER_MIME, folderQuery, planImport, type DriveFile } from './google-drive-files';
 import {
   buildAuthorizationUrl,
   createPkcePair,
@@ -18,7 +24,17 @@ import {
 
 const PROVIDER = 'google_drive';
 const FILES_ENDPOINT = 'https://www.googleapis.com/drive/v3/files';
-const USERINFO_ENDPOINT = 'https://www.googleapis.com/oauth2/v2/userinfo';
+/**
+ * Who the connected account belongs to, asked of Drive rather than of the
+ * OpenID userinfo endpoint.
+ *
+ * `userinfo` needs a profile scope this connector deliberately does not ask
+ * for, so it answers 401 and the account name comes back empty — which is what
+ * put "Connected as unknown account" on the Sources page. Drive's own
+ * `about.get` returns the same address under the `drive.readonly` grant that
+ * is already held, so nobody has to consent to anything further.
+ */
+const ABOUT_ENDPOINT = 'https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)';
 
 /** A pending authorization, held only as long as a person takes to consent. */
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -71,8 +87,39 @@ export class GoogleDriveService {
       where: { ownerId_provider: { ownerId, provider: PROVIDER } },
       select: { accountEmail: true, createdAt: true },
     });
+    if (!connection) return { connected: false };
 
-    return { connected: connection !== null, ...connection };
+    return {
+      connected: true,
+      ...connection,
+      // A connection made while the address could not be read has none stored.
+      // Filled in the next time anyone looks, rather than by asking the person
+      // to disconnect and consent again for a label.
+      accountEmail: connection.accountEmail ?? (await this.backfillAccountEmail(ownerId)),
+    };
+  }
+
+  /**
+   * Reads the account address once and keeps it.
+   *
+   * Failure is silent and returns nothing: this is the caption under a
+   * connector's name, and a Drive hiccup must not turn the Sources page into an
+   * error where a working connection used to be.
+   */
+  private async backfillAccountEmail(ownerId: string): Promise<string | null> {
+    try {
+      const email = await this.fetchAccountEmail(await this.accessToken(ownerId));
+      if (!email) return null;
+
+      await this.prisma.sourceConnection.update({
+        where: { ownerId_provider: { ownerId, provider: PROVIDER } },
+        data: { accountEmail: email },
+      });
+      return email;
+    } catch (failure) {
+      this.logger.warn(`could not read the Drive account name: ${(failure as Error).message}`);
+      return null;
+    }
   }
 
   startAuthorization(ownerId: string): string {
@@ -81,7 +128,11 @@ export class GoogleDriveService {
     const state = createState();
     const { verifier, challenge } = createPkcePair();
     this.sweepExpiredStates();
-    this.pending.set(state, { ownerId, verifier, expiresAt: Date.now() + STATE_TTL_MS });
+    this.pending.set(state, {
+      ownerId,
+      verifier,
+      expiresAt: Date.now() + STATE_TTL_MS,
+    });
 
     return buildAuthorizationUrl({
       clientId: this.clientId,
@@ -127,7 +178,9 @@ export class GoogleDriveService {
     // Upsert, so reconnecting replaces the grant rather than leaving an older
     // one behind that nobody can see to revoke.
     await this.prisma.sourceConnection.upsert({
-      where: { ownerId_provider: { ownerId: auth.ownerId, provider: PROVIDER } },
+      where: {
+        ownerId_provider: { ownerId: auth.ownerId, provider: PROVIDER },
+      },
       create: {
         provider: PROVIDER,
         ownerId: auth.ownerId,
@@ -148,7 +201,9 @@ export class GoogleDriveService {
   }
 
   async disconnect(ownerId: string): Promise<void> {
-    await this.prisma.sourceConnection.deleteMany({ where: { ownerId, provider: PROVIDER } });
+    await this.prisma.sourceConnection.deleteMany({
+      where: { ownerId, provider: PROVIDER },
+    });
   }
 
   /** One page of a folder, with what would happen to each entry on import. */
@@ -163,12 +218,110 @@ export class GoogleDriveService {
     url.searchParams.set('pageSize', '100');
     if (pageToken) url.searchParams.set('pageToken', pageToken);
 
-    const body = await this.driveRequest<{ files: DriveFile[]; nextPageToken?: string }>(url, token);
+    const body = await this.driveRequest<{
+      files: DriveFile[];
+      nextPageToken?: string;
+    }>(url, token);
 
     return {
       files: body.files.map((file) => ({ ...file, plan: planImport(file) })),
       nextPageToken: body.nextPageToken ?? null,
     };
+  }
+
+  /**
+   * What the browser needs to open Google's own file picker.
+   *
+   * The access token is the uncomfortable part. Everywhere else in this service
+   * the Drive credentials are encrypted at rest and never leave the process;
+   * the Picker runs in the page and takes a token through `setOAuthToken`,
+   * so choosing Google's picker over a server-rendered browser means handing
+   * the page a `drive.readonly` token for the length of a visit. It is
+   * short-lived and refreshed here rather than stored by the client, and it is
+   * only ever issued to a caller who already holds the `upload` permission.
+   */
+  async pickerConfig(ownerId: string) {
+    if (!this.configured || !this.apiKey) {
+      return {
+        ready: false as const,
+        clientId: '',
+        apiKey: '',
+        accessToken: '',
+      };
+    }
+
+    return {
+      ready: true as const,
+      clientId: this.clientId,
+      apiKey: this.apiKey,
+      accessToken: await this.accessToken(ownerId),
+    };
+  }
+
+  /**
+   * A picked selection flattened into the files that can actually be imported.
+   *
+   * Folders are walked to the bottom, which is what selecting a folder is taken
+   * to mean. Two limits keep a stray click on "My Drive" from enumerating an
+   * entire account: a depth, and a ceiling on the files returned. Hitting the
+   * ceiling throws rather than truncating — a silent half-import is worse than
+   * being told to pick something narrower.
+   */
+  async expandSelection(
+    ownerId: string,
+    entries: DriveFile[],
+    limits: { maxFiles: number; maxDepth: number },
+  ): Promise<{
+    files: DriveFile[];
+    skipped: { name: string; reason: string }[];
+  }> {
+    const files: DriveFile[] = [];
+    const skipped: { name: string; reason: string }[] = [];
+    const seen = new Set<string>();
+
+    const take = (file: DriveFile) => {
+      if (seen.has(file.id)) return;
+      seen.add(file.id);
+
+      const plan = planImport(file);
+      if (plan.action === 'skip') {
+        skipped.push({ name: file.name, reason: plan.reason });
+        return;
+      }
+      if (files.length >= limits.maxFiles) {
+        throw new BadRequestException(
+          `That selection holds more than ${limits.maxFiles} importable files. Pick a narrower folder.`,
+        );
+      }
+      files.push(file);
+    };
+
+    const walk = async (folder: DriveFile, depth: number): Promise<void> => {
+      if (depth > limits.maxDepth) {
+        skipped.push({
+          name: folder.name,
+          reason: `Nested deeper than ${limits.maxDepth} folders`,
+        });
+        return;
+      }
+
+      let pageToken: string | undefined;
+      do {
+        const page = await this.listFolder(ownerId, folder.id, pageToken);
+        for (const child of page.files) {
+          if (child.mimeType === FOLDER_MIME) await walk(child, depth + 1);
+          else take(child);
+        }
+        pageToken = page.nextPageToken ?? undefined;
+      } while (pageToken);
+    };
+
+    for (const entry of entries) {
+      if (entry.mimeType === FOLDER_MIME) await walk(entry, 1);
+      else take(entry);
+    }
+
+    return { files, skipped };
   }
 
   /** The bytes of one file, exporting it first when it is a native Google doc. */
@@ -186,14 +339,19 @@ export class GoogleDriveService {
       url.searchParams.set('alt', 'media');
     }
 
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!response.ok) {
       throw new ServiceUnavailableException(
         `Google Drive refused to send "${file.name}" (${response.status}).`,
       );
     }
 
-    return { filename: plan.filename, bytes: Buffer.from(await response.arrayBuffer()) };
+    return {
+      filename: plan.filename,
+      bytes: Buffer.from(await response.arrayBuffer()),
+    };
   }
 
   // ---- tokens -------------------------------------------------------------
@@ -267,11 +425,12 @@ export class GoogleDriveService {
 
   private async fetchAccountEmail(accessToken: string): Promise<string | null> {
     try {
-      const response = await fetch(USERINFO_ENDPOINT, {
+      const response = await fetch(ABOUT_ENDPOINT, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!response.ok) return null;
-      return ((await response.json()) as { email?: string }).email ?? null;
+      const body = (await response.json()) as { user?: { emailAddress?: string } };
+      return body.user?.emailAddress ?? null;
     } catch {
       // A label, not a credential: failing to read it must not fail the
       // connection that otherwise works.
@@ -280,7 +439,9 @@ export class GoogleDriveService {
   }
 
   private async driveRequest<T>(url: URL, token: string): Promise<T> {
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!response.ok) {
       throw new ServiceUnavailableException(
         `Google Drive returned ${response.status}: ${await response.text()}`,
@@ -301,6 +462,10 @@ export class GoogleDriveService {
 
   private get redirectUri(): string {
     return this.config.get('GOOGLE_REDIRECT_URI', { infer: true });
+  }
+
+  private get apiKey(): string {
+    return this.config.get('GOOGLE_API_KEY', { infer: true }) ?? '';
   }
 
   private assertConfigured(): void {
