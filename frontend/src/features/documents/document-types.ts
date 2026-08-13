@@ -8,6 +8,7 @@ export interface DocumentListItem {
   title: string | null;
   language: string | null;
   metadata: Record<string, unknown> | null;
+  sizeBytes: number;
   uploadedAt: string;
   processedAt: string | null;
   owner: { id: string; email: string } | null;

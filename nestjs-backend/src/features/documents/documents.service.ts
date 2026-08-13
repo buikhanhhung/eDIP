@@ -40,6 +40,7 @@ const LIST_SELECT = {
   title: true,
   language: true,
   metadata: true,
+  sizeBytes: true,
   uploadedAt: true,
   processedAt: true,
   owner: { select: { id: true, email: true } },

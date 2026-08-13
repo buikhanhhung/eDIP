@@ -26,7 +26,7 @@ import { PageHeader } from '@/components/page-header';
 import { StatTile, TILE_TONES } from '@/components/stat-tile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiClient } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
+import { cn, formatBytes } from '@/lib/utils';
 import { typeColor, typeLabel, type OverviewStats } from '@/features/documents/document-types';
 
 /** Which door a document came through. */
@@ -530,18 +530,6 @@ function labelledRows(counts: Record<string, number>, labels: Record<string, str
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .map(([key, value]) => ({ key, label: labels[key] ?? key, value }));
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
 /** Thousands and millions, so a token count stays readable beside a label. */

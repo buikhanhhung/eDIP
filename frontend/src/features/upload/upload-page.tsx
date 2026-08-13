@@ -1,24 +1,35 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import {
+  ArrowRight,
+  Copy,
   Info,
   Lock,
   ScanText,
   Tags,
   Upload as UploadIcon,
   UploadCloud,
-  type LucideIcon,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { Capability } from '@/components/capability';
+import { FileTypeChip } from '@/components/file-type-chip';
 import { PageHeader } from '@/components/page-header';
 import { StatusPill } from '@/components/status-pill';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
-import { cn, formatDate } from '@/lib/utils';
-
+import { cn, formatBytes, formatDate } from '@/lib/utils';
+import type { DocumentListResponse } from '@/features/documents/document-types';
 
 /**
  * Mirrors the server allowlist. Two copies is the cost of two deployables; the
@@ -28,11 +39,12 @@ const ACCEPTED =
   '.txt,.md,.markdown,.csv,.json,.log,.xml,.html,.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp';
 
 const POLL_INTERVAL_MS = 1500;
-/**
- * `duplicate` never comes from the API — the row is closed the moment the
- * upload is refused, so it must not be polled for a status it will never have.
- */
-const TERMINAL = ['completed', 'failed', 'duplicate'];
+
+/** A status that will not change again on its own, so polling can stop. */
+const TERMINAL = ['completed', 'failed'];
+
+/** Enough to see what just landed without turning the page into the library. */
+const RECENT_COUNT = 5;
 
 interface PreviousVersion {
   id: string;
@@ -40,15 +52,20 @@ interface PreviousVersion {
   uploadedAt: string;
 }
 
-interface TrackedUpload {
-  id: string;
+/**
+ * Something worth saying about one file that the table below cannot show.
+ *
+ * A refused upload never became a document, so it has no row in the library to
+ * appear in; an accepted one that shares a name with older files has a row, but
+ * nothing in it says so. Both are facts about this attempt rather than about
+ * the corpus, so they live here for the session and are not persisted.
+ */
+interface UploadNotice {
+  key: string;
   filename: string;
-  status: string;
-  error: string | null;
-  documentType: string | null;
-  /** The document this file duplicates, when the upload was refused. */
+  kind: 'duplicate' | 'failed' | 'versions';
+  message?: string;
   duplicateOf?: { id: string; filename: string } | null;
-  /** Earlier files with the same name but different content. */
   previousVersions?: PreviousVersion[];
 }
 
@@ -57,96 +74,84 @@ export function UploadPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [tracked, setTracked] = useState<TrackedUpload[]>([]);
+  const [notices, setNotices] = useState<UploadNotice[]>([]);
 
-  const pending = tracked.filter((item) => !TERMINAL.includes(item.status));
+  /**
+   * The library's newest rows, which is where a file lands the moment it is
+   * accepted — so the just-uploaded and the previously-uploaded are one list
+   * rather than two that disagree.
+   */
+  const { data: recent, isLoading } = useQuery({
+    queryKey: ['documents', { take: RECENT_COUNT }],
+    queryFn: async () =>
+      (await apiClient.get<DocumentListResponse>('/documents', { params: { take: RECENT_COUNT } }))
+        .data,
+    // One poll for the whole list rather than one per file: the number of
+    // requests must not grow with the number of files dropped. It stops of its
+    // own accord once nothing is still being read.
+    refetchInterval: (query) =>
+      query.state.data?.items.some((item) => !TERMINAL.includes(item.status))
+        ? POLL_INTERVAL_MS
+        : false,
+  });
 
-  // One timer for all in-flight documents rather than one per row, so the
-  // number of requests does not grow with the number of files dropped.
-  useEffect(() => {
-    if (pending.length === 0) return;
+  const submit = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      setBusy(true);
 
-    const timer = setInterval(async () => {
-      const updates = await Promise.allSettled(
-        pending.map((item) =>
-          apiClient.get<{ status: string; error: string | null; documentType: string | null }>(
-            `/documents/${item.id}/status`,
-          ),
-        ),
-      );
+      for (const file of Array.from(files)) {
+        const form = new FormData();
+        form.append('file', file);
+        try {
+          const { data } = await apiClient.post<{
+            id: string;
+            filename: string;
+            status: string;
+            previousVersions: PreviousVersion[];
+          }>('/documents', form);
 
-      setTracked((current) =>
-        current.map((item) => {
-          const index = pending.findIndex((p) => p.id === item.id);
-          if (index < 0) return item;
-          const result = updates[index];
-          if (result.status !== 'fulfilled') return item;
-          return { ...item, ...result.value.data };
-        }),
-      );
+          if (data.previousVersions?.length > 0) {
+            setNotices((current) => [
+              {
+                key: data.id,
+                filename: data.filename,
+                kind: 'versions',
+                previousVersions: data.previousVersions,
+              },
+              ...current,
+            ]);
+          }
+        } catch (err) {
+          // A refusal gets its own notice rather than one shared error line: in
+          // a batch of twenty, the reader needs to know *which* file was
+          // refused, and why.
+          const conflict = axios.isAxiosError(err) && err.response?.status === 409;
 
-      // A finished job changes the library and the dashboard counts.
-      if (updates.some((u) => u.status === 'fulfilled' && TERMINAL.includes(u.value.data.status))) {
-        void queryClient.invalidateQueries({ queryKey: ['documents'] });
-        void queryClient.invalidateQueries({ queryKey: ['stats'] });
+          setNotices((current) => [
+            {
+              key: `rejected-${file.name}-${Date.now()}`,
+              filename: file.name,
+              kind: conflict ? 'duplicate' : 'failed',
+              message: extractErrorMessage(err, `Could not upload ${file.name}.`),
+              duplicateOf: conflict
+                ? ((err.response?.data as { duplicateOf?: { id: string; filename: string } })
+                    ?.duplicateOf ?? null)
+                : null,
+            },
+            ...current,
+          ]);
+        }
       }
-    }, POLL_INTERVAL_MS);
 
-    return () => clearInterval(timer);
-  }, [pending, queryClient]);
-
-  const submit = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setBusy(true);
-    setError(null);
-
-    for (const file of Array.from(files)) {
-      const form = new FormData();
-      form.append('file', file);
-      try {
-        const { data } = await apiClient.post<{
-          id: string;
-          filename: string;
-          status: string;
-          previousVersions: PreviousVersion[];
-        }>('/documents', form);
-        setTracked((current) => [
-          {
-            id: data.id,
-            filename: data.filename,
-            status: data.status,
-            error: null,
-            documentType: null,
-            previousVersions: data.previousVersions,
-          },
-          ...current,
-        ]);
-      } catch (err) {
-        // A refusal gets its own row rather than one shared error line: in a
-        // batch of twenty, the reader needs to know *which* file was refused.
-        const conflict = axios.isAxiosError(err) && err.response?.status === 409;
-        const duplicateOf = conflict
-          ? ((err.response?.data as { duplicateOf?: { id: string; filename: string } })
-              ?.duplicateOf ?? null)
-          : null;
-
-        setTracked((current) => [
-          {
-            id: `rejected-${file.name}-${Date.now()}`,
-            filename: file.name,
-            status: conflict ? 'duplicate' : 'failed',
-            error: extractErrorMessage(err, `Could not upload ${file.name}.`),
-            documentType: null,
-            duplicateOf,
-          },
-          ...current,
-        ]);
-      }
-    }
-
-    setBusy(false);
-  }, []);
+      // The new rows belong to the library and to the overview's counts, not
+      // just to this page.
+      void queryClient.invalidateQueries({ queryKey: ['documents'] });
+      void queryClient.invalidateQueries({ queryKey: ['overview'] });
+      setBusy(false);
+    },
+    [queryClient],
+  );
 
   function onDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -229,101 +234,153 @@ export function UploadPage() {
         </CardContent>
       </Card>
 
-      {error && (
-        <p className="rounded-md bg-danger-light px-3 py-2 text-sm text-danger-base">{error}</p>
+      {notices.length > 0 && (
+        <div className="space-y-2">
+          {notices.map((notice) => (
+            <Notice key={notice.key} notice={notice} />
+          ))}
+        </div>
       )}
 
-      {tracked.length > 0 && (
-        <Card>
-          <CardContent className="divide-y divide-stroke-soft-200 pt-6">
-            {tracked.map((item) => {
-              const refused = item.status === 'duplicate';
-              return (
-                <div key={item.id} className="space-y-1 py-3 first:pt-0 last:pb-0">
-                  <div className="flex items-center gap-3">
-                    {/* A refused file has no document to open. */}
-                    {refused ? (
-                      <span className="min-w-0 flex-1 truncate font-medium text-text-sub-600">
-                        {item.filename}
-                      </span>
-                    ) : (
-                      <Link
-                        to={`/documents/${item.id}`}
-                        className="min-w-0 flex-1 truncate font-medium hover:underline"
-                      >
-                        {item.filename}
-                      </Link>
-                    )}
-                    {item.documentType && <Badge variant="secondary">{item.documentType}</Badge>}
+      {/* A bordered panel rather than a Card: the title then sits on the same
+          left edge as the column headings under it, which a card's wider
+          padding would put eight pixels out. */}
+      <div className="overflow-hidden rounded-lg border border-stroke-soft-200 bg-bg-white-0 shadow-soft">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-stroke-soft-200 px-4 py-3">
+          <h2 className="font-semibold text-text-strong-950">Recent uploads</h2>
+          <Link
+            to="/library"
+            className="flex items-center gap-1 text-sm text-primary-base hover:underline"
+          >
+            View all uploads
+            <ArrowRight className="size-3.5" />
+          </Link>
+        </div>
+
+        <Table>
+            <TableHeader>
+              <TableRow>
+                {/* Absorbs the leftover width and truncates, so a long
+                    Vietnamese filename never pushes the dates off the edge. */}
+                <TableHead className="w-full max-w-0">File name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">Size</TableHead>
+                <TableHead>Uploaded</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {recent?.items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="max-w-0">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <FileTypeChip filename={item.filename} />
+                      <div className="min-w-0">
+                        <Link
+                          to={`/documents/${item.id}`}
+                          className="block truncate font-medium text-text-strong-950 hover:text-primary-base hover:underline"
+                        >
+                          {item.filename}
+                        </Link>
+                        {item.title && (
+                          <p className="truncate text-xs text-text-soft-400">{item.title}</p>
+                        )}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <Badge variant="secondary">{extensionOf(item.filename)}</Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right tabular-nums text-text-sub-600">
+                    {formatBytes(item.sizeBytes)}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums text-text-sub-600">
+                    {formatDate(item.uploadedAt)}
+                  </TableCell>
+                  <TableCell>
                     <StatusPill status={item.status} />
-                    {item.error && !refused && (
-                      <span className="max-w-sm truncate text-xs text-danger-base" title={item.error}>
-                        {item.error}
-                      </span>
-                    )}
-                  </div>
-
-                  {refused && item.duplicateOf && (
-                    <p className="text-xs text-text-sub-600">
-                      Identical to{' '}
-                      <Link
-                        to={`/documents/${item.duplicateOf.id}`}
-                        className="text-primary-base hover:underline"
-                      >
-                        {item.duplicateOf.filename}
-                      </Link>
-                      , already in the library — nothing was uploaded.
-                    </p>
-                  )}
-
-                  {/* Same name, different content: a revision, not a repeat. */}
-                  {!refused && item.previousVersions && item.previousVersions.length > 0 && (
-                    <p className="text-xs text-text-sub-600">
-                      {item.previousVersions.length} earlier file
-                      {item.previousVersions.length > 1 ? 's' : ''} share this name:{' '}
-                      {item.previousVersions.map((version, index) => (
-                        <span key={version.id}>
-                          {index > 0 && ', '}
-                          <Link
-                            to={`/documents/${version.id}`}
-                            className="text-primary-base hover:underline"
-                          >
-                            {formatDate(version.uploadedAt)}
-                          </Link>
-                        </span>
-                      ))}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-function Capability({
-  icon: Icon,
-  tone,
-  title,
-  body,
-}: {
-  icon: LucideIcon;
-  tone: string;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="flex gap-3">
-      <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${tone}`}>
-        <Icon className="size-4" />
-      </span>
-      <div>
-        <p className="text-sm font-medium text-text-strong-950">{title}</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-text-sub-600">{body}</p>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {!isLoading && recent?.items.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-10 text-center text-text-sub-600">
+                    Nothing uploaded yet. Drop a file above to get started.
+                  </TableCell>
+                </TableRow>
+              )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
 }
+
+/**
+ * The outcome of one upload attempt, in the words that attempt earned.
+ *
+ * A refusal is not an error — the file is already here, which is the system
+ * working — so it is toned as information rather than as a failure.
+ */
+function Notice({ notice }: { notice: UploadNotice }) {
+  if (notice.kind === 'failed') {
+    return (
+      <p className="rounded-md bg-danger-light px-3 py-2 text-sm text-danger-base">
+        <span className="font-medium">{notice.filename}</span> — {notice.message}
+      </p>
+    );
+  }
+
+  if (notice.kind === 'duplicate') {
+    return (
+      <p className="flex items-start gap-2 rounded-md bg-bg-weak-50 px-3 py-2 text-sm text-text-sub-600">
+        <Copy className="mt-0.5 size-4 shrink-0 text-text-soft-400" />
+        <span>
+          <span className="font-medium text-text-strong-950">{notice.filename}</span> was not
+          uploaded
+          {notice.duplicateOf ? (
+            <>
+              {' '}
+              — it is identical to{' '}
+              <Link
+                to={`/documents/${notice.duplicateOf.id}`}
+                className="text-primary-base hover:underline"
+              >
+                {notice.duplicateOf.filename}
+              </Link>
+              , already in the library.
+            </>
+          ) : (
+            ', because an identical file is already in the library.'
+          )}
+        </span>
+      </p>
+    );
+  }
+
+  // Same name, different content: a revision, not a repeat.
+  const versions = notice.previousVersions ?? [];
+  return (
+    <p className="flex items-start gap-2 rounded-md bg-primary-lighter px-3 py-2 text-sm text-text-sub-600">
+      <Info className="mt-0.5 size-4 shrink-0 text-primary-base" />
+      <span>
+        <span className="font-medium text-text-strong-950">{notice.filename}</span> was uploaded.{' '}
+        {versions.length} earlier file{versions.length > 1 ? 's' : ''} share this name:{' '}
+        {versions.map((version, index) => (
+          <span key={version.id}>
+            {index > 0 && ', '}
+            <Link to={`/documents/${version.id}`} className="text-primary-base hover:underline">
+              {formatDate(version.uploadedAt)}
+            </Link>
+          </span>
+        ))}
+      </span>
+    </p>
+  );
+}
+
+/** The extension as a reader writes it, for the column that names the format. */
+function extensionOf(filename: string): string {
+  return filename.split('.').pop()?.toUpperCase() ?? 'FILE';
+}
+
