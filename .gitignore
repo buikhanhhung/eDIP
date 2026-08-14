@@ -6,8 +6,14 @@
 
 # Uploaded documents and local data. The seed corpus carries KYC-shaped sample
 # records; keep the blobs out of git even though the data is synthetic.
-storage/
-data/
+#
+# Anchored with a leading slash on purpose. A bare `storage/` matches a
+# directory of that name at EVERY level, and this repo has one in the source
+# tree — src/infrastructure/storage — so the unanchored pattern silently kept
+# four compiled-against files out of the repo and every fresh clone failed to
+# build. Words this generic must name the one place they mean.
+/nestjs-backend/storage/
+/nestjs-backend/data/
 
 # Dependencies and build output
 node_modules/
