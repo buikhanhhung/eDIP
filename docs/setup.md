@@ -104,6 +104,8 @@ pnpm prisma migrate deploy
 pnpm prisma db seed
 ```
 
+`pnpm install` chạy `prisma generate` qua `postinstall`. Không có client sinh ra thì `@prisma/client` rỗng và mọi thứ chạm database đều không biên dịch được — `migrate deploy` **không** tự sinh client. Nếu gặp lỗi kiểu `Property 'document' does not exist on type 'PrismaService'`, chạy tay `npx prisma generate` rồi thử lại.
+
 `db seed` **cần FalkorDB đang chạy** — thực thể của corpus mẫu được ghi thẳng vào đồ thị, không có bảng Postgres nào chứa chúng.
 
 > Prisma 7 không tự đọc `.env` và không dùng `package.json#prisma.seed`. Cả hai được khai trong `prisma.config.ts`. Xoá file đó thì `migrate deploy` báo thiếu datasource URL và `db seed` im lặng không làm gì.
