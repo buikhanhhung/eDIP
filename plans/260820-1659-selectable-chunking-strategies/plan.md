@@ -1,7 +1,7 @@
 ---
 title: "Chọn chiến lược chunking khi upload"
 description: "Người dùng chọn 1 trong 4 chiến lược chunking lúc upload; registry phẳng thay cho một hàm splitText duy nhất; hồi sinh cột parent_content đang bị đọc mà chưa ai ghi."
-status: in-progress
+status: done
 priority: P2
 branch: "master"
 tags: [chunking, ingestion, tdd]
@@ -65,7 +65,7 @@ Câu `INSERT` phải thêm cột nhưng không test nào chứng kiến. Mỗi p
 | 2 | [Persist Choice Through Api And Ui](./phase-02-persist-choice-through-api-and-ui.md) | **Done** |
 | 3 | [Parent Child Markdown](./phase-03-parent-child-markdown.md) | **Done** |
 | 4 | [Document Structure](./phase-04-document-structure.md) | **Done** |
-| 5 | [Semantic Chunking](./phase-05-semantic-chunking.md) | Pending |
+| 5 | [Semantic Chunking](./phase-05-semantic-chunking.md) | **Done** |
 
 ## Dependencies
 
