@@ -17,9 +17,11 @@ README có bản rút gọn cho người đã quen. Trang này đi từng bướ
 
 | Thứ | Bản | Kiểm bằng |
 |---|---|---|
-| Node | 20 trở lên | `node -v` |
+| Node | **22.12 trở lên** | `node -v` |
 | pnpm | 9 trở lên | `pnpm -v` |
 | Docker Desktop | đang chạy | `docker ps` |
+
+> **22.12 là sàn thật, không phải khuyến nghị.** Chiến lược chunking theo heading markdown dùng `unified` và `remark-parse` — cả hai là pure-ESM. Bản biên dịch (`module: commonjs`) gọi chúng bằng `require()`, và `require()` một package ESM chỉ chạy từ Node 22.12. Trên Node 20 thì `pnpm install`, `pnpm build`, `pnpm test` đều xanh, rồi lần đầu chunk một tệp markdown mới ném `ERR_REQUIRE_ESM` — test không bắt được vì jest tự transpile các package đó. `engines` trong `nestjs-backend/package.json` giữ đúng sàn này.
 
 Chưa có pnpm: `npm i -g pnpm`.
 

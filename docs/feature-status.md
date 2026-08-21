@@ -1,6 +1,6 @@
 # Tình trạng tính năng
 
-Cập nhật 12/08/2026. Mỗi dòng ghi **đã đo bằng cách nào**, không ghi ý định.
+Cập nhật 12/08/2026; mục **Nạp tài liệu** bổ sung 21/08/2026 cho phần chọn chiến lược chunking. Mỗi dòng ghi **đã đo bằng cách nào**, không ghi ý định.
 
 ✅ đã chạy thật và kiểm được · ⚠️ chạy được nhưng có giới hạn đã biết · ❌ chưa làm
 
@@ -28,6 +28,10 @@ Provider model lúc đo: **Gemini** (`gemini-3.5-flash-lite`, `gemini-embedding-
 | PDF scan qua vision | ⚠️ | đường chạy giống hệt ảnh và có 2 assert chặn trang trắng, nhưng **chưa chạy thử với PDF scan thật** |
 | Thử lại khi lỗi | ✅ | 3 lần, giãn 2s rồi 4s; chỉ lần cuối mới ghi `failed` |
 | Lỗi dựng đồ thị không làm hỏng tài liệu | ✅ | chủ ý nuốt lỗi: tài liệu giữ `completed` với đồ thị rỗng |
+| Chọn chiến lược chunking lúc tải lên | ✅ | upload không gửi field → `chunking_strategy = RECURSIVE_CHARACTER`; gửi giá trị hợp lệ → lưu đúng giá trị; gửi rác hoặc chiến lược **chưa có implementation** → 400 và **không** tạo `Document` nào |
+| Cắt theo heading markdown, trả về cả mục (`PARENT_CHILD_MARKDOWN`) | ✅ | `.md` 3 cấp heading → 4 chunk, cả 4 có `parent_content` dài hơn con; `POST /ask` trả citation là **đoạn cha** kèm breadcrumb `[H1] > [H2]` |
+| `PARENT_CHILD_MARKDOWN` với tệp không có heading markdown | ⚠️ | chỉ **4/32** tài liệu trong kho có ATX heading; PDF/DOCX/scan không bao giờ có → cả tài liệu thành một mục, mỗi chunk lưu toàn văn làm cha (đo được 15–21× lượng byte). Đã ghi rõ trên trang Tải lên, **chưa** đổi hành vi |
+| Chi phí nạp của `PARENT_CHILD_MARKDOWN` | ⚠️ | child 500 ký tự làm số chunk tăng ~2× (README 20 → 44), mà bước dựng đồ thị gọi LLM 2 lần/chunk → ~40 lượt gọi thành ~88. Lỗi đồ thị bị nuốt nên biểu hiện là **đồ thị rỗng im lặng** |
 
 ## Phân tích bằng model
 
