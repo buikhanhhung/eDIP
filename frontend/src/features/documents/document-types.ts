@@ -123,6 +123,7 @@ export function typeColor(type: string | null): string {
 export const CHUNKING_LABELS: Record<string, string> = {
   RECURSIVE_CHARACTER: 'RECURSIVE_CHARACTER',
   PARENT_CHILD_MARKDOWN: 'PARENT_CHILD_MARKDOWN',
+  DOCUMENT_STRUCTURE: 'DOCUMENT_STRUCTURE',
 };
 
 /**
@@ -135,6 +136,9 @@ export const CHUNKING_NOTES: Record<string, string> = {
   PARENT_CHILD_MARKDOWN:
     'Splits on Markdown headings and answers with the whole section for context. ' +
     'Files without Markdown headings — most PDFs, Word files and scans — become one section.',
+  DOCUMENT_STRUCTURE:
+    'Splits on Markdown headings, one chunk per section, repeating the heading in each piece. ' +
+    'Same heading requirement as above, but without the extra context on retrieval.',
 };
 
 export const STATUS_LABELS: Record<string, string> = {
