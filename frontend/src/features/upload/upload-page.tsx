@@ -27,9 +27,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Select } from '@/components/ui/input';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
 import { cn, formatBytes, formatDate } from '@/lib/utils';
-import type { DocumentListResponse } from '@/features/documents/document-types';
+import { CHUNKING_LABELS, type DocumentListResponse } from '@/features/documents/document-types';
 
 /**
  * Mirrors the server allowlist. Two copies is the cost of two deployables; the
@@ -37,6 +38,15 @@ import type { DocumentListResponse } from '@/features/documents/document-types';
  */
 const ACCEPTED =
   '.txt,.md,.markdown,.csv,.json,.log,.xml,.html,.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp';
+
+const CHUNKING_OPTIONS = Object.keys(CHUNKING_LABELS);
+
+/**
+ * The first option, which is also the server's default. Taken from the list
+ * rather than written out again: a literal here would go stale the moment a key
+ * is renamed, leaving the control showing one strategy and sending another.
+ */
+const DEFAULT_CHUNKING = CHUNKING_OPTIONS[0];
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -75,6 +85,10 @@ export function UploadPage() {
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notices, setNotices] = useState<UploadNotice[]>([]);
+  // One strategy for the whole batch, not one per file: the choice describes
+  // how this drop should be read, and asking per file would turn a drag of
+  // twenty into twenty questions.
+  const [chunking, setChunking] = useState(DEFAULT_CHUNKING);
 
   /**
    * The library's newest rows, which is where a file lands the moment it is
@@ -102,6 +116,12 @@ export function UploadPage() {
 
       for (const file of Array.from(files)) {
         const form = new FormData();
+        // Before the file by convention rather than necessity: multer finishes
+        // parsing the whole body before the route handler runs, so `@Body()`
+        // sees this field either way. Kept first because anything that inspects
+        // parts as they arrive — a fileFilter, a streaming parser — would need
+        // it to have arrived already.
+        form.append('chunkingStrategy', chunking);
         form.append('file', file);
         try {
           const { data } = await apiClient.post<{
@@ -150,7 +170,7 @@ export function UploadPage() {
       void queryClient.invalidateQueries({ queryKey: ['overview'] });
       setBusy(false);
     },
-    [queryClient],
+    [queryClient, chunking],
   );
 
   function onDrop(event: DragEvent<HTMLDivElement>) {
@@ -201,6 +221,32 @@ export function UploadPage() {
         <p className="mt-3 text-xs text-text-soft-400">
           PDF, DOCX, XLSX, PPTX, TXT, MD, CSV, JSON, XML, HTML, PNG, JPG, WEBP · up to 20 MB each
         </p>
+
+        {/* Hidden while there is only one strategy: a dropdown with a single
+            option asks a question that has no second answer. It appears on its
+            own as later strategies are implemented. */}
+        {CHUNKING_OPTIONS.length > 1 && (
+          <div className="mx-auto mt-5 max-w-xs text-left">
+            <label
+              htmlFor="chunking-strategy"
+              className="mb-1.5 block text-xs font-medium text-text-sub-600"
+            >
+              Chunking strategy
+            </label>
+            <Select
+              id="chunking-strategy"
+              value={chunking}
+              disabled={busy}
+              onChange={(event) => setChunking(event.target.value)}
+            >
+              {CHUNKING_OPTIONS.map((id) => (
+                <option key={id} value={id}>
+                  {CHUNKING_LABELS[id]}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* What the pipeline will do, said once here rather than discovered

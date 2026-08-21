@@ -111,6 +111,19 @@ export function typeColor(type: string | null): string {
   return TYPE_COLORS[type ?? 'unknown'] ?? TYPE_COLORS.unknown;
 }
 
+/**
+ * The chunking strategies the server will accept, in the order they are
+ * offered. Kept as technical names on purpose: what is shown here is exactly
+ * what lands in `chunking_strategy` and in the logs, so looking one up later
+ * needs no translation.
+ *
+ * One entry per implemented strategy — the upload page hides the control
+ * entirely while there is nothing to choose between.
+ */
+export const CHUNKING_LABELS: Record<string, string> = {
+  RECURSIVE_CHARACTER: 'RECURSIVE_CHARACTER',
+};
+
 export const STATUS_LABELS: Record<string, string> = {
   uploaded: 'Uploaded',
   processing: 'Processing',
