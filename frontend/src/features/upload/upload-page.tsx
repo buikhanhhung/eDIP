@@ -13,6 +13,7 @@ import {
 import { useCallback, useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Capability } from '@/components/capability';
+import { ChunkingStrategyDialog } from '@/components/chunking-strategy-dialog';
 import { FileTypeChip } from '@/components/file-type-chip';
 import { PageHeader } from '@/components/page-header';
 import { StatusPill } from '@/components/status-pill';
@@ -27,12 +28,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Select } from '@/components/ui/input';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
 import { cn, formatBytes, formatDate } from '@/lib/utils';
 import {
   CHUNKING_LABELS,
-  CHUNKING_NOTES,
   type DocumentListResponse,
 } from '@/features/documents/document-types';
 
@@ -43,14 +42,13 @@ import {
 const ACCEPTED =
   '.txt,.md,.markdown,.csv,.json,.log,.xml,.html,.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp';
 
-const CHUNKING_OPTIONS = Object.keys(CHUNKING_LABELS);
 
 /**
- * The first option, which is also the server's default. Taken from the list
- * rather than written out again: a literal here would go stale the moment a key
- * is renamed, leaving the control showing one strategy and sending another.
+ * What the dialog opens on, and what the server falls back to. Taken from the
+ * label list rather than written out again, so renaming a key cannot leave the
+ * dialog preselecting a strategy the server does not accept.
  */
-const DEFAULT_CHUNKING = CHUNKING_OPTIONS[0];
+const DEFAULT_CHUNKING = Object.keys(CHUNKING_LABELS)[0];
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -93,6 +91,17 @@ export function UploadPage() {
   // how this drop should be read, and asking per file would turn a drag of
   // twenty into twenty questions.
   const [chunking, setChunking] = useState(DEFAULT_CHUNKING);
+  /**
+   * What the dialog is standing in front of: the file picker it will open, or
+   * files already dropped and waiting to be sent.
+   */
+  const [asking, setAsking] = useState<{ dropped?: File[] } | null>(null);
+  /**
+   * Read by the picker's change handler. State would do everywhere except
+   * there: `input.click()` fires synchronously after the dialog closes, and the
+   * handler must not see the previous render's value.
+   */
+  const chosen = useRef(DEFAULT_CHUNKING);
 
   /**
    * The library's newest rows, which is where a file lands the moment it is
@@ -114,7 +123,7 @@ export function UploadPage() {
   });
 
   const submit = useCallback(
-    async (files: FileList | null) => {
+    async (files: FileList | File[] | null, strategy: string) => {
       if (!files || files.length === 0) return;
       setBusy(true);
 
@@ -125,7 +134,7 @@ export function UploadPage() {
         // sees this field either way. Kept first because anything that inspects
         // parts as they arrive — a fileFilter, a streaming parser — would need
         // it to have arrived already.
-        form.append('chunkingStrategy', chunking);
+        form.append('chunkingStrategy', strategy);
         form.append('file', file);
         try {
           const { data } = await apiClient.post<{
@@ -174,17 +183,39 @@ export function UploadPage() {
       void queryClient.invalidateQueries({ queryKey: ['overview'] });
       setBusy(false);
     },
-    [queryClient, chunking],
+    [queryClient],
   );
 
   function onDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDragging(false);
-    void submit(event.dataTransfer.files);
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length > 0) setAsking({ dropped: files });
+  }
+
+  /** The dialog's answer: send what was dropped, or go and ask for files. */
+  function onStrategyConfirmed(strategy: string) {
+    const dropped = asking?.dropped;
+    setChunking(strategy);
+    chosen.current = strategy;
+    setAsking(null);
+
+    if (dropped) void submit(dropped, strategy);
+    else inputRef.current?.click();
   }
 
   return (
     <div className="space-y-6">
+      <ChunkingStrategyDialog
+        open={asking !== null}
+        value={chunking}
+        onChange={setChunking}
+        onConfirm={onStrategyConfirmed}
+        onCancel={() => setAsking(null)}
+        // Dropped files are already in hand, so the next step is sending them.
+        confirmLabel={asking?.dropped ? `Upload ${asking.dropped.length} file(s)` : 'Choose files'}
+      />
+
       <PageHeader
         icon={UploadIcon}
         title="Upload documents"
@@ -217,45 +248,14 @@ export function UploadPage() {
           multiple
           accept={ACCEPTED}
           className="hidden"
-          onChange={(e) => void submit(e.target.files)}
+          onChange={(e) => void submit(e.target.files, chosen.current)}
         />
-        <Button className="mt-4" disabled={busy} onClick={() => inputRef.current?.click()}>
+        <Button className="mt-4" disabled={busy} onClick={() => setAsking({})}>
           {busy ? 'Uploading…' : 'Choose files'}
         </Button>
         <p className="mt-3 text-xs text-text-soft-400">
           PDF, DOCX, XLSX, PPTX, TXT, MD, CSV, JSON, XML, HTML, PNG, JPG, WEBP · up to 20 MB each
         </p>
-
-        {/* Hidden while there is only one strategy: a dropdown with a single
-            option asks a question that has no second answer. It appears on its
-            own as later strategies are implemented. */}
-        {CHUNKING_OPTIONS.length > 1 && (
-          <div className="mx-auto mt-5 max-w-xs text-left">
-            <label
-              htmlFor="chunking-strategy"
-              className="mb-1.5 block text-xs font-medium text-text-sub-600"
-            >
-              Chunking strategy
-            </label>
-            <Select
-              id="chunking-strategy"
-              value={chunking}
-              disabled={busy}
-              onChange={(event) => setChunking(event.target.value)}
-            >
-              {CHUNKING_OPTIONS.map((id) => (
-                <option key={id} value={id}>
-                  {CHUNKING_LABELS[id]}
-                </option>
-              ))}
-            </Select>
-            {/* Said here rather than in the label, which stays the technical
-                name that lands in the database and the logs. */}
-            <p className="mt-1.5 text-xs text-text-soft-400">
-              {CHUNKING_NOTES[chunking] ?? ''}
-            </p>
-          </div>
-        )}
       </div>
 
       {/* What the pipeline will do, said once here rather than discovered

@@ -124,6 +124,7 @@ export const CHUNKING_LABELS: Record<string, string> = {
   RECURSIVE_CHARACTER: 'RECURSIVE_CHARACTER',
   PARENT_CHILD_MARKDOWN: 'PARENT_CHILD_MARKDOWN',
   DOCUMENT_STRUCTURE: 'DOCUMENT_STRUCTURE',
+  SEMANTIC: 'SEMANTIC',
 };
 
 /**
@@ -139,6 +140,10 @@ export const CHUNKING_NOTES: Record<string, string> = {
   DOCUMENT_STRUCTURE:
     'Splits on Markdown headings, one chunk per section, repeating the heading in each piece. ' +
     'Same heading requirement as above, but without the extra context on retrieval.',
+  SEMANTIC:
+    'Splits where the meaning changes, by comparing sentences. Works on any file type. ' +
+    'Slower, and the only strategy that spends extra embedding quota — it falls back to ' +
+    'paragraph splitting if that fails, so an upload is never lost.',
 };
 
 export const STATUS_LABELS: Record<string, string> = {
