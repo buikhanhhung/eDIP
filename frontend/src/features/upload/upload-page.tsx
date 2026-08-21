@@ -30,7 +30,11 @@ import {
 import { Select } from '@/components/ui/input';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
 import { cn, formatBytes, formatDate } from '@/lib/utils';
-import { CHUNKING_LABELS, type DocumentListResponse } from '@/features/documents/document-types';
+import {
+  CHUNKING_LABELS,
+  CHUNKING_NOTES,
+  type DocumentListResponse,
+} from '@/features/documents/document-types';
 
 /**
  * Mirrors the server allowlist. Two copies is the cost of two deployables; the
@@ -245,6 +249,11 @@ export function UploadPage() {
                 </option>
               ))}
             </Select>
+            {/* Said here rather than in the label, which stays the technical
+                name that lands in the database and the logs. */}
+            <p className="mt-1.5 text-xs text-text-soft-400">
+              {CHUNKING_NOTES[chunking] ?? ''}
+            </p>
           </div>
         )}
       </div>

@@ -122,6 +122,19 @@ export function typeColor(type: string | null): string {
  */
 export const CHUNKING_LABELS: Record<string, string> = {
   RECURSIVE_CHARACTER: 'RECURSIVE_CHARACTER',
+  PARENT_CHILD_MARKDOWN: 'PARENT_CHILD_MARKDOWN',
+};
+
+/**
+ * What each strategy actually does to a file, for the reader who has just been
+ * handed four technical names. Kept beside the labels so a strategy cannot be
+ * offered without one.
+ */
+export const CHUNKING_NOTES: Record<string, string> = {
+  RECURSIVE_CHARACTER: 'Splits on paragraph breaks. Works on any file type.',
+  PARENT_CHILD_MARKDOWN:
+    'Splits on Markdown headings and answers with the whole section for context. ' +
+    'Files without Markdown headings — most PDFs, Word files and scans — become one section.',
 };
 
 export const STATUS_LABELS: Record<string, string> = {
