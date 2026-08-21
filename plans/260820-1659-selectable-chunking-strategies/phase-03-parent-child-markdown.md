@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "Parent Child Markdown"
-status: pending
+status: done
 priority: P1
 dependencies: [2]
 effort: "3.5h"
@@ -104,13 +104,42 @@ Bảng đã có sẵn `parent_content` **và** `metadata` — cả hai chưa t�
 
 ## Success Criteria
 
-- [ ] Phép thử ESM xanh **trước khi** viết strategy
-- [ ] `vector-store.service.spec.ts` tồn tại và pass — `INSERT` giờ có test bảo vệ
-- [ ] Upload `.md` có heading → `SELECT count(*) FROM embedding_chunks WHERE parent_content IS NOT NULL` > 0
-- [ ] Hỏi AI về tài liệu đó → đoạn trích trả về là **đoạn cha** (dài hơn con), qua `COALESCE` đã có
-- [ ] Mọi child của một section có cùng `parentContent`
-- [ ] Dropdown 2 lựa chọn
-- [ ] 185 test cũ + test mới pass
+- [x] Phép thử ESM xanh **trước khi** viết strategy — nhưng **đỏ ở lần đầu**, xem ghi nhận bên dưới
+- [x] `vector-store.service.spec.ts` tồn tại và pass — `INSERT` giờ có test bảo vệ
+- [x] Upload `.md` có heading → 4/4 chunk có `parent_content`, mỗi cha dài hơn con
+- [x] Hỏi AI về tài liệu đó → citation trả về **đúng đoạn cha**, có cả breadcrumb `[H1] > [H2]`
+- [x] Mọi child của một section có cùng `parentContent`
+- [x] Dropdown 2 lựa chọn — **chưa xem bằng mắt**, xem ghi nhận
+- [x] 185 test cũ + test mới pass (234 sau khi sửa theo review)
+
+## Đã triển khai — 21/08/2026
+
+**Phép thử ESM đỏ ở lần đầu.** Giả định của plan — "ECVBot chạy được với jest không cấu hình ESM nên eDIP cũng chạy" — được đánh dấu UNVERIFIED, và **nó sai**. Jest có module registry riêng, nạp `unified` như CommonJS và ném `SyntaxError: Unexpected token 'export'`; hỗ trợ `require(esm)` của Node 22 không giúp gì vì jest không đi qua loader của Node. Đã dùng đường lùi (a) mà chính phase file nêu sẵn: thêm `transformIgnorePatterns` cho nhánh ESM của remark/micromark, viết để khớp **cả** layout `.pnpm/<tên>@<ver>/` lẫn `node_modules/<tên>` phẳng — nếu chỉ khớp pnpm thì khi đổi package manager nó sẽ âm thầm ngừng tác dụng.
+
+Reviewer đã tự truy toàn bộ closure của 3 dependency mới: 42 package, 34 ESM-only, allowlist phủ **hết** ở cả hai layout. Rủi ro còn lại: đây là allowlist theo tên trên cây phụ thuộc của người khác, nên một bản minor của micromark/remark kéo thêm package mới sẽ làm test đỏ cho tới khi thêm tên. Chấp nhận được vì **đỏ ồn ào**, không phải sai âm thầm — công thức xử lý: gặp `Unexpected token 'export'` thì thêm tên package vào danh sách trong `package.json` và `test/jest-e2e.json` (hai chỗ, đã đồng bộ).
+
+| Việc | Vì sao |
+|---|---|
+| Child cắt bằng `splitText(body, 500, 100)` của eDIP, không phải recursive splitter của ECVBot | Theo plan. Hệ quả thật: `splitText` cắt theo dòng trống và **để nguyên đoạn dài**, nên một section là một đoạn liền sẽ ra **một** child to. Đo trên corpus thật: child lớn nhất 3.697 ký tự so với mục tiêu 500 |
+| Bỏ `chunkIndex` và `config` của ECVBot | eDIP gán `chunkIndex` lúc ghi theo vị trí trong mảng; chữ ký `ChunkingStrategy` không có đường truyền config, nên 500/100 là hằng |
+| Cache parser ở cấp module, không phải field của instance | Strategy là hàm, không phải provider. Reviewer xác nhận an toàn: hai lần gọi đầu đồng thời đều nhận parser dựng đủ, jest cô lập registry theo từng file test |
+| `vector-store.service.spec.ts` **stub Prisma**, không chạm DB | Cả 29 suite của repo này chạy không cần hạ tầng; bắt `pnpm test` cần Postgres là thay đổi lớn hơn ý định của phase. Mock quyết định trọn vẹn phần **câu lệnh và thứ tự tham số** — đúng lỗi mà phase lo. Vòng round-trip kiểm bằng DB thật ở cuối phase |
+| Truyền `parentContent` + `metadata` qua cả `scripts/backfill-embeddings.ts` | Phase file chỉ yêu cầu *kiểm tra không vỡ compile*. Nhưng nếu không truyền, một lần `pnpm backfill:embeddings` sẽ ghi lại tài liệu parent-child thành chunk phẳng — cùng loại lỗi hạ cấp âm thầm đã bắt được sau phase 1 |
+| Bỏ `parentContent` khi nó **trùng nguyên văn** `content` | Review tìm ra hai đường tới trạng thái đó: setext heading (`Tiêu đề` + `=====`, regex chỉ bóc ATX) và section không có heading vừa gọn trong một child. Khi đó `COALESCE` trả về đúng chuỗi cũ, mà cột lưu hai lần |
+| Regex bóc heading cho phép **thiếu** ký tự xuống dòng | Heading cuối tài liệu không có `\n`, nên body không bao giờ rỗng và `# Tiêu đề cuối` bị phát ra thành chunk chứa chính tiêu đề nó. ECVBot có đúng lỗi này |
+| Thêm `engines.node >= 22.12` | `dist` biên dịch `await import()` thành `require('unified')`. Chỉ chạy được nhờ Node 22.12+ (require(esm)). Trên Node 20 thì cùng `dist` đó ném `ERR_REQUIRE_ESM` ở lần chunk markdown đầu tiên — và **không test nào bắt được**, vì jest transpile dependency nên test vẫn xanh |
+| Lọc trùng ngữ cảnh `/ask` (`distinctByContent`) | Sinh ra từ chính phase này: mọi child của một section trả về **cùng một** cha, mà sibling thì xếp hạng cạnh nhau, nên top-8 thường là 8 bản của một đoạn. Đo được tệ nhất ~67KB cho một câu hỏi. Lọc ở chỗ fuse chứ không sau khi cắt, để chỗ trống nhường cho đoạn **khác** thay vì co ngữ cảnh lại |
+| Thêm dòng chú thích dưới `Select` | 4/32 tài liệu có ATX heading; PDF/DOCX/scan không bao giờ có. Nhãn vẫn là tên kỹ thuật theo quyết định cũ, lời giải thích đặt riêng bên dưới — đúng khuôn mà phase 5 dự định cho cảnh báo chi phí của `SEMANTIC` |
+
+**Ghi nhận trung thực:**
+
+- **Test của chính tôi có lỗi cùng loại đã bị bắt ở phase 1.** `vector-store.service.spec.ts` kiểm danh sách cột và mảng tham số, nhưng **không** kiểm chuỗi `VALUES ($1, $2, ...)`. Nghĩa là `VALUES ($1, $2, $4, $3, ...)` — buộc chiến lược vào `parent_content` — vẫn pass cả 4 test. Đã thêm assertion và **kiểm chứng bằng mutation**: đảo `$3`/`$4` thì test đỏ
+- Một lần sửa regex **âm thầm không áp dụng**: script python in "fixed" mà không assert chuỗi cần thay có khớp. Chỉ có probe phát hiện. Đã thêm assert vào các lần sửa sau, và assert đó lập tức bắt thêm một chuỗi không khớp cùng một escape JSON sai
+- Chiến lược này **thoái hoá trên corpus thật**: chỉ 4/32 tài liệu có ATX heading, nên phần còn lại thành một section duy nhất và mỗi child lưu **cả tài liệu** làm cha. Đo được 15–21× lượng byte cha; một tệp 8.887 ký tự ra 23 child và 192KB cha. Đã ghi chú trên UI, **không** đổi hành vi
+- **Chi phí nạp tăng ~2×** với chiến lược này: child 500 ký tự làm số chunk tăng gấp đôi (README 20 → 44), mà `entity-extraction` gọi LLM **2 lần mỗi chunk**. Tài liệu từng tốn ~40 lượt gọi giờ tốn ~88. Lỗi graph bị nuốt theo thiết kế, nên biểu hiện sẽ là **graph rỗng im lặng**, không phải lỗi
+- Dropdown **chưa được xem bằng mắt**. Trước phase này khối `Select` chưa từng render lần nào. Nó typecheck, lint và build sạch, reviewer đã đọc và xác nhận không có đường index thiếu bảo vệ — nhưng đó không phải là đã render
+- Còn hai điểm nhỏ giữ nguyên theo đúng nguồn ECVBot: `metadata.chunkingStrategy` trùng với cột `chunking_strategy`; nhánh `sections.length === 0` là code chết (nhánh preamble đã phủ). Cả hai đều có y nguyên trong ECVBot
+- YAML frontmatter trong `.md` bị đọc như nội dung: `---\ntitle: t\n---` ra 2 chunk rác (remark đọc `title: t` + `---` thành setext H2). Chưa xử lý
 
 ## Risk Assessment
 
