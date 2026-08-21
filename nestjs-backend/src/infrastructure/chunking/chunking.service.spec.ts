@@ -15,7 +15,10 @@ describe('ChunkingService', () => {
    * gap is asserted here, where it costs a red test instead of a failed job.
    */
   it('offers exactly the strategies it has registered', () => {
-    expect(IMPLEMENTED_CHUNKING_STRATEGIES).toEqual(['RECURSIVE_CHARACTER']);
+    expect(IMPLEMENTED_CHUNKING_STRATEGIES).toEqual([
+      'RECURSIVE_CHARACTER',
+      'PARENT_CHILD_MARKDOWN',
+    ]);
   });
 
   /**

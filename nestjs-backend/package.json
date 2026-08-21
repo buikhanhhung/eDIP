@@ -4,6 +4,9 @@
   "description": "",
   "author": "",
   "private": true,
+  "engines": {
+    "node": ">=22.12"
+  },
   "license": "UNLICENSED",
   "scripts": {
     "postinstall": "prisma generate",
@@ -46,6 +49,7 @@
     "ioredis": "^6.0.0",
     "jszip": "^3.10.1",
     "mammoth": "^1.12.1",
+    "mdast-util-to-string": "^4.0.0",
     "nestjs-zod": "^5.5.0",
     "openai": "^7.4.0",
     "passport": "^0.7.0",
@@ -53,7 +57,9 @@
     "pdfjs-dist": "^6.2.108",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
+    "remark-parse": "^11.0.0",
     "rxjs": "^7.8.1",
+    "unified": "^11.0.5",
     "unpdf": "^1.8.0",
     "zod": "^4.4.3"
   },
@@ -109,6 +115,9 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(\\.pnpm/)?(unified|remark-parse|mdast-util-[a-z-]+|micromark[a-z-]*|vfile[a-z-]*|unist-util-[a-z-]+|bail|trough|extend|is-plain-obj|decode-named-character-reference|character-entities|devlop)[@/])"
+    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

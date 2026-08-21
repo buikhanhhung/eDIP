@@ -21,19 +21,19 @@ export interface Chunk {
   /** The text that gets embedded. */
   content: string;
   /**
-   * The wider passage meant to reach the model in place of `content`. Only the
-   * hierarchical strategies set it.
+   * The wider passage returned to the model in place of `content`, set only by
+   * the hierarchical strategies. Both retrieval queries select
+   * `COALESCE(parent_content, content)`, so a chunk is found by its own text
+   * but answered with the wider passage.
    *
-   * The read side already exists — both retrieval queries select
-   * `COALESCE(parent_content, content)` — but `replaceChunks` does not yet
-   * write the column, so a value set here is dropped on the way to the table.
-   * Setting it is therefore pointless until that INSERT carries it.
+   * Leave it unset where it would merely repeat `content`: the COALESCE would
+   * return the same string either way, and the row would hold it twice.
    */
   parentContent?: string;
   /**
    * Per-strategy provenance — which section a chunk came from, and the like.
-   * The table has the column; `replaceChunks` does not yet write it, so this
-   * shares `parentContent`'s fate until that INSERT carries both.
+   * Persisted as JSON. Nothing reads it back yet: it exists so a stored chunk
+   * can say which strategy produced it and where it sat in the document.
    */
   metadata?: Record<string, unknown>;
 }

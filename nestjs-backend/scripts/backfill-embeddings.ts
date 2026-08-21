@@ -72,8 +72,13 @@ async function main() {
       chunks.map((chunk, index) => ({
         documentId: document.id,
         content: chunk.content,
+        // Carried through for the same reason the strategy is: this rewrite
+        // replaces the rows, so dropping the parent here would quietly demote a
+        // parent-child document to flat chunks.
+        parentContent: chunk.parentContent,
         chunkingStrategy: strategy,
         chunkIndex: index,
+        metadata: chunk.metadata,
       })),
     );
 

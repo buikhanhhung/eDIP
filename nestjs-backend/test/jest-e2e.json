@@ -2,6 +2,9 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
   "testEnvironment": "node",
+  "transformIgnorePatterns": [
+    "/node_modules/(?!(\\.pnpm/)?(unified|remark-parse|mdast-util-[a-z-]+|micromark[a-z-]*|vfile[a-z-]*|unist-util-[a-z-]+|bail|trough|extend|is-plain-obj|decode-named-character-reference|character-entities|devlop)[@/])"
+  ],
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"

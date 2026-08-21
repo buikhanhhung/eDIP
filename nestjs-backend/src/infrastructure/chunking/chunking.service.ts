@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Chunk, ChunkingStrategy, ChunkingStrategyId } from './chunking.types';
+import { parentChildMarkdownStrategy } from './parent-child-markdown.strategy';
 import { recursiveCharacterStrategy } from './recursive-character.strategy';
 
 /**
@@ -12,6 +13,7 @@ import { recursiveCharacterStrategy } from './recursive-character.strategy';
  */
 const STRATEGIES: Partial<Record<ChunkingStrategyId, ChunkingStrategy>> = {
   RECURSIVE_CHARACTER: recursiveCharacterStrategy,
+  PARENT_CHILD_MARKDOWN: parentChildMarkdownStrategy,
 };
 
 /**

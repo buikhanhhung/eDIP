@@ -7,6 +7,15 @@ export interface ChunkRecord {
   content: string;
   chunkingStrategy: string;
   chunkIndex: number;
+  /**
+   * The wider passage to return in place of `content`, set only by the
+   * hierarchical strategies. Both retrieval queries already read it through
+   * `COALESCE(parent_content, content)`, so leaving it undefined keeps the
+   * previous behaviour exactly.
+   */
+  parentContent?: string;
+  /** Per-strategy provenance: which section a chunk came from, and the like. */
+  metadata?: Record<string, unknown>;
   /** Filled by the embedding step; null until then. */
   embedding?: number[] | null;
 }
@@ -44,12 +53,16 @@ export class VectorStoreService {
 
     for (const chunk of chunks) {
       await this.prisma.$executeRawUnsafe(
-        `INSERT INTO embedding_chunks (document_id, content, chunking_strategy, chunk_index, embedding)
-         VALUES ($1, $2, $3, $4, $5::vector)`,
+        `INSERT INTO embedding_chunks (document_id, content, parent_content, chunking_strategy, chunk_index, metadata, embedding)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::vector)`,
         chunk.documentId,
         chunk.content,
+        // Undefined stays NULL rather than becoming '': the read side is a
+        // COALESCE, and an empty string would satisfy it and return nothing.
+        chunk.parentContent || null,
         chunk.chunkingStrategy,
         chunk.chunkIndex,
+        chunk.metadata ? JSON.stringify(chunk.metadata) : null,
         chunk.embedding ? toVectorLiteral(chunk.embedding) : null,
       );
     }
@@ -113,7 +126,9 @@ export class VectorStoreService {
     const tsquery = buildOrTsQuery(query);
     if (!tsquery) return [];
 
-    const rows = await this.prisma.$queryRawUnsafe<{ id: number; documentId: string; content: string }[]>(
+    const rows = await this.prisma.$queryRawUnsafe<
+      { id: number; documentId: string; content: string }[]
+    >(
       `SELECT ec.id, ec.document_id AS "documentId",
               COALESCE(ec.parent_content, ec.content) AS content
        FROM embedding_chunks ec

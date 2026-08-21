@@ -107,8 +107,10 @@ export class IngestConsumer extends WorkerHost {
         chunks.map((chunk, index) => ({
           documentId,
           content: chunk.content,
+          parentContent: chunk.parentContent,
           chunkingStrategy: strategy,
           chunkIndex: index,
+          metadata: chunk.metadata,
         })),
       );
 
