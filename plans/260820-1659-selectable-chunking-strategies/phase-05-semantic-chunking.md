@@ -41,6 +41,12 @@ text → tách câu → embed[] → similarity(i, i+1) → cắt ở đáy cục
 
 **Ngưỡng cắt:** đề xuất khởi điểm 0.75, hằng số trong file kèm comment nêu rõ đây là số chưa hiệu chỉnh trên corpus thật. Không đưa ra UI.
 
+## Ràng buộc mới từ phase 2
+
+`IMPLEMENTED_CHUNKING_STRATEGIES` được **tính lúc import** từ const `STRATEGIES` cấp module trong `chunking.service.ts`, và `chunking-strategy-input.ts` (nên cả controller) import nó để validate.
+
+Khi `SEMANTIC` cần `IEmbeddingService` tiêm vào, entry của nó **không còn là giá trị cấp module được nữa**. Nghĩa là **danh sách id đã có implementation** và **map từ id sang implementation** có vòng đời khác nhau, và chỉ danh sách cần với tới được từ controller. Tách hai thứ đó ra, đừng để controller phải đi qua DI chỉ để biết một mảng string.
+
 ## Related Code Files
 
 **Create**
