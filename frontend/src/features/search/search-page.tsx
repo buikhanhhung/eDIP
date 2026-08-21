@@ -8,6 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import {
+  SearchOptionsPanel,
+  SEARCH_DEFAULTS,
+  type SearchOptions,
+} from './search-options-panel';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
 import { typeLabel } from '@/features/documents/document-types';
 
@@ -34,16 +39,24 @@ const SUGGESTIONS = ['hợp đồng với Saigon Retail', 'hop dong', 'chính s�
 
 export function SearchPage() {
   const [query, setQuery] = useState('');
+  const [options, setOptions] = useState<SearchOptions>(SEARCH_DEFAULTS);
 
   const search = useMutation({
-    mutationFn: async (q: string) =>
-      (await apiClient.post<{ hits: SearchHit[]; degraded: boolean }>('/search', { q })).data,
+    // The options travel with the query rather than in state the server keeps:
+    // they describe this question, not this installation.
+    mutationFn: async ({ q, with: sent }: { q: string; with: SearchOptions }) =>
+      (await apiClient.post<{ hits: SearchHit[]; degraded: boolean }>('/search', { q, ...sent }))
+        .data,
   });
+
+  function run(q: string, sent: SearchOptions = options) {
+    const trimmed = q.trim();
+    if (trimmed) search.mutate({ q: trimmed, with: sent });
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const q = query.trim();
-    if (q) search.mutate(q);
+    run(query);
   }
 
   return (
@@ -58,6 +71,15 @@ export function SearchPage() {
             Ask AI instead
           </Link>
         }
+      />
+
+      <SearchOptionsPanel
+        value={options}
+        onChange={setOptions}
+        disabled={search.isPending}
+        // Applying re-runs the query that is already on screen, so a moved
+        // slider shows its effect instead of waiting for the next search.
+        onApply={() => run(query)}
       />
 
       <form className="flex gap-2" onSubmit={submit}>
@@ -79,7 +101,7 @@ export function SearchPage() {
             className="rounded-full border border-stroke-soft-200 bg-bg-white-0 px-3 py-1 text-xs text-text-sub-600 transition-default hover:border-primary-base hover:text-primary-base"
             onClick={() => {
               setQuery(suggestion);
-              search.mutate(suggestion);
+              run(suggestion);
             }}
           >
             {suggestion}
