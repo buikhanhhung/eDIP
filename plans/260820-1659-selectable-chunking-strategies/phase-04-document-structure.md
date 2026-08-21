@@ -1,7 +1,7 @@
 ---
 phase: 4
 title: "Document Structure"
-status: pending
+status: done
 priority: P2
 dependencies: [3]
 effort: "1.5h"
@@ -90,13 +90,82 @@ Không chạm `vector-store` (phase 3 đã thêm `metadata` vào `INSERT`), khô
 
 ## Success Criteria
 
-- [ ] 9 ca test trên pass, đặc biệt ca code fence và ca cắt cứng
-- [ ] Upload một `.md` nhiều header với chiến lược này → số chunk khớp số section, kiểm bằng SQL
-- [ ] `metadata` trong `embedding_chunks` chứa `sectionHeader` và `level` đúng
-- [ ] Sub-chunk của section dài đều mang lại header
-- [ ] `parent_content` NULL cho mọi chunk của chiến lược này
-- [ ] Dropdown 3 lựa chọn
-- [ ] 185 test cũ + test mới pass
+- [x] 13 test pass (9 ca phase file yêu cầu + 4), đặc biệt ca **code fence** và ca **cắt cứng không mất chữ**
+- [x] `metadata` chứa `sectionHeader`, `level`, `isSubChunk`, `subChunkIndex` đúng
+- [x] Sub-chunk của section dài đều mang lại header — kiểm cả trên fixture và trên markdown thật của repo
+- [x] `parentContent` undefined ở mọi chunk của chiến lược này
+- [x] Dropdown 3 lựa chọn — ở mức code; **chưa xem bằng mắt** (bạn tự kiểm)
+- [x] 185 test cũ + test mới pass → **247**, `tsc --noEmit` và eslint sạch, frontend build sạch
+- [ ] **Upload `.md` thật rồi kiểm bằng SQL: CHƯA CHẠY** — xem ghi nhận bên dưới
+
+## Đã triển khai — 21/08/2026
+
+Port `DOCUMENT_STRUCTURE` y nguyên ECVBot: `HEADER_RE`, `DEFAULT_MAX_CHUNK_SIZE = 1500`, `preserveHeaders`, nhận biết code fence bằng cờ `inCode`, cắt theo `\n\n+` khi quá cỡ, cắt cứng theo độ dài khi một đoạn văn đơn vẫn quá cỡ, header chèn lại vào **mọi** sub-chunk.
+
+| Việc | Vì sao |
+|---|---|
+| Export `documentStructureChunks(text, options)` + strategy đăng ký gọi nó với mặc định | Chữ ký `ChunkingStrategy` của eDIP không có đường truyền config, mà `maxChunkSize`/`preserveHeaders` cần test trực tiếp. Cùng cách phase 3 xử lý hằng 500/100, nhưng ở đây options có thật nên phơi ra |
+| Giữ section **chỉ có header** thành một chunk chứa đúng dòng tiêu đề | ECVBot làm vậy: `full = ('# Rỗng\n\n' + '').trim()` = `'# Rỗng'`, khác rỗng nên vẫn phát ra. Tôi **không** tự sửa vì quyết định là port y nguyên — nhưng đã ghim vào test để ngày ai muốn bỏ thì đó là thay đổi có chủ ý. Một dòng guard là xong |
+
+**Phát hiện từ dữ liệu thật, fixture không bắt được:**
+
+Chạy strategy trên chính markdown của repo thay vì fixture:
+
+| Tệp | Ký tự | Dòng trông như ATX | Section | Chunk | Sub-chunk | Có `parentContent` |
+|---|---|---|---|---|---|---|
+| `README.md` | 6.074 | 19 | 9 | 9 | 0 | 0 |
+| `docs/setup.md` | 10.530 | 21 | 16 | 17 | 2 | 0 |
+
+- **Nhận biết code fence chạy đúng trên dữ liệu thật**: README có 19 dòng khớp regex ATX nhưng chỉ ra 9 section — 10 dòng còn lại là `#` bên trong khối code, và strategy đã bỏ qua đúng.
+- **`maxChunkSize` là giới hạn mềm, không phải cứng.** `docs/setup.md` sinh một chunk **1.519 ký tự** với `maxChunkSize = 1500`. Phần vượt đúng **19 ký tự = độ dài header được chèn lại**: giới hạn áp cho phần *thân*, còn header cộng thêm lên trên. Đây là hành vi của ECVBot (`(headerStr + p.slice(i, i + maxChunkSize)).trim()`), port y nguyên. Đã **ghim vào test** vì fixture gọn gàng không bao giờ chạm ngưỡng đó, mà con số này quan trọng với người tính cửa sổ prompt.
+
+**Ghi nhận trung thực — tiêu chí live chưa chạy:**
+
+Máy hết RAM nên không kiểm được end-to-end. Số đo lúc thử: **0,99 GB trống / 7,71 GB**; `nest start` chết OOM (exit 134) ngay bước biên dịch; `docker ps` không trả lời trong 120 giây; trước đó agent-browser mở Chromium (9 tiến trình, ~734 MB) đẩy RAM trống xuống **0,1 GB** và treo hẳn. Đang tranh bộ nhớ: 13 tiến trình Chrome của người dùng, Docker Desktop 3 container, vite, backend.
+
+Rủi ro còn lại **thấp**, vì phase này không mở đường mới nào:
+
+- không migration, không cột mới, không dependency mới
+- đường ghi `metadata` **đã được chứng minh end-to-end ở phase 3**: đã truy vấn `metadata->>'sectionHeader'` và `metadata->>'level'` từ DB thật và ra đúng giá trị
+- `parent_content` NULL cho chiến lược phẳng đã có spec vector-store bảo vệ, và 104 dòng `recursive` sẵn có đều NULL
+
+Thứ **chưa** được chứng minh: số chunk trong DB khớp số section trên một lần upload thật, và dropdown 3 lựa chọn hiển thị đúng.
+
+## Sửa theo review — 21/08/2026
+
+Review tìm ra một lỗi **treo tiến trình** và một đường làm **chết job nạp**, cả hai tôi không thấy.
+
+| Finding | Xử lý |
+|---|---|
+| **C1 — `maxChunkSize <= 0` là vòng lặp vô hạn, cạn heap** | `at += maxChunkSize` không tiến khi bằng 0, mà `??` không chặn `0`. Reviewer chạy thật: heap lên 2 GB rồi chết. Sửa: `Math.max(1, ...)`. **Lệch khỏi ECVBot có chủ ý** — ECVBot có đúng lỗ này và ở đó còn với tới được từ config của caller |
+| **H1 — chunk rỗng / trơ header tới được provider embedding** | `.trim()` trên miếng cắt rơi vào vệt khoảng trắng dài → `content: ''` (provider trả 400) hoặc chunk chỉ có tiêu đề, mà `replaceChunks` **đã commit rows trước đó** nên job chết ở `step('embed')` với chunk đã lưu và embedding null. Sửa: bỏ miếng cắt không có chữ; miếng còn lại **byte-identical** |
+| **H2 — test "losing no characters" của tôi nói quá** | `'x'.repeat(250)` không có khoảng trắng nên `.trim()` không bao giờ chạy. Với payload có khoảng trắng thì **mất 2 ký tự** thật. Đổi sang payload chữ luân phiên, assert đúng `[100, 100, 50]` và từng slice; thêm test riêng ghi nhận đường này **có** mất khoảng trắng |
+| Mutation score 9/15 — 5 lỗ hổng thật | Thêm test cho: cắt theo dòng trống (không phải mọi newline), `#khongcachtrong`, 7 dấu thăng, nhánh `whole.length === 0`, `subChunkIndex` reset theo từng section, và **dispatch qua registry** (trước đó không test nào đi qua `service.split`, nên registry nối sai hàm vẫn xanh cả 258 test) |
+| **Md4 — spec ledger phụ thuộc thứ tự khai báo registry** | So sánh dạng tập đã sắp xếp. Đổi chỗ hai entry trong `STRATEGIES` giờ không làm đỏ test vì lý do không đáng |
+| **Md1 — comment của tôi nói sai** | Tôi viết "no regex can tell the difference" về code fence, nhưng module bên cạnh dùng mdast và làm được. Viết lại trung thực, liệt kê đúng bốn chỗ hai chiến lược **thật sự bất đồng**: `Title\n====`, `## Heading ##`, fence `~~~`, code thụt 4 dấu cách |
+| Divergence tôi không khai | Bỏ guard `!content` nên `null` sẽ throw thay vì trả `[]`. Đúng quy ước hai strategy kia, và `split()` async nên throw thành rejection. Giữ nguyên, ghi lại |
+
+**Kiểm chứng bằng mutation, không chỉ nói suông:** đảo `\n\n+` → `\n+` và `HEADER_RE` `\s+` → `\s*` — cả hai giờ **đỏ** đúng test mới. (Hai lần đầu tôi thử, sed không khớp nên mutation chưa hề áp; phải in `repr` mới phát hiện, rồi dựng pattern bằng `chr(92)` để tránh tầng xử lý backslash của shell.)
+
+## Quyết định của người dùng: gộp tiêu đề mồ côi
+
+Review đo được: trên dạng văn bản **chính** của dự án — `# Chương N` theo ngay sau là các `## Điều` — có **25% chunk là chunk chỉ chứa dòng tiêu đề** (4/16), trong khi `PARENT_CHILD_MARKDOWN` trên cùng đầu vào ra **0**. Hai chiến lược markdown trả lời trái ngược nhau, mà một trong hai còn mang comment nói đã sửa đúng ca này.
+
+Người dùng chọn **gộp**, không giữ cũng không bỏ. Đây là **thiết kế mới, không còn là port**: tiêu đề có thân rỗng được giữ lại trong `pendingHeaders` rồi dán vào section có nội dung tiếp theo.
+
+Đo lại sau khi sửa, cùng đầu vào 4 chương × 3 điều:
+
+| | Trước | Sau |
+|---|:-:|:-:|
+| Chunk | 16 | **12** (khớp `PARENT_CHILD_MARKDOWN`) |
+| Chunk chỉ có tiêu đề | 4 (25%) | **0** |
+| Chunk mở đầu bằng `# Chương N` | 0 | 4 — ngữ cảnh chương không mất |
+
+Ca biên đã khoá bằng test: nhiều tiêu đề rỗng liên tiếp thì cộng dồn theo thứ tự (`# A` + `## B` + `### C` + thân → một chunk); tiêu đề rỗng ở **cuối** tài liệu thì bị bỏ vì không còn gì để gộp vào; `preserveHeaders: false` thì không có gì để gộp nên vô tác dụng. `metadata.sectionHeader` vẫn là section của chính chunk (`Điều 1`, level 2), không phải chương — tiêu đề chương chỉ nằm trong text.
+
+Hệ quả cần biết: `headerText` giờ có thể dài hơn một dòng, nên biên vượt giới hạn ở trên (`maxChunkSize` + độ dài header) cũng rộng theo.
+
+**Test cuối phase 4: 258 pass, 30 suite**, tsc/eslint/prettier sạch, frontend build sạch.
 
 ## Risk Assessment
 

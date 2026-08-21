@@ -64,7 +64,7 @@ Câu `INSERT` phải thêm cột nhưng không test nào chứng kiến. Mỗi p
 | 1 | [Registry And Default Strategy](./phase-01-registry-and-default-strategy.md) | **Done** |
 | 2 | [Persist Choice Through Api And Ui](./phase-02-persist-choice-through-api-and-ui.md) | **Done** |
 | 3 | [Parent Child Markdown](./phase-03-parent-child-markdown.md) | **Done** |
-| 4 | [Document Structure](./phase-04-document-structure.md) | Pending |
+| 4 | [Document Structure](./phase-04-document-structure.md) | **Done** |
 | 5 | [Semantic Chunking](./phase-05-semantic-chunking.md) | Pending |
 
 ## Dependencies
