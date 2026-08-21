@@ -1,11 +1,18 @@
 import { ChunkingService, IMPLEMENTED_CHUNKING_STRATEGIES } from './chunking.service';
-import { CHUNKING_STRATEGIES } from './chunking.types';
+import { CHUNKING_STRATEGIES, type ChunkingStrategyId } from './chunking.types';
 
 describe('ChunkingService', () => {
-  const service = new ChunkingService();
+  // The strategies these tests reach never read the embedding service; the
+  // object satisfies the interface structurally, so no cast is needed.
+  const service = new ChunkingService({ generateEmbeddings: jest.fn() });
 
   it('names the strategy it cannot serve instead of falling back quietly', async () => {
-    await expect(service.split('bất kỳ', 'SEMANTIC')).rejects.toThrow(/SEMANTIC/);
+    // Every declared id is implemented now, so the guard is reached with one
+    // that is not declared at all — a stale value read back from the database
+    // would arrive exactly like this.
+    const unknown = 'NUMBERED_SECTION' as ChunkingStrategyId;
+
+    await expect(service.split('bất kỳ', unknown)).rejects.toThrow(/NUMBERED_SECTION/);
   });
 
   /**
@@ -19,6 +26,7 @@ describe('ChunkingService', () => {
       'RECURSIVE_CHARACTER',
       'PARENT_CHILD_MARKDOWN',
       'DOCUMENT_STRUCTURE',
+      'SEMANTIC',
     ]);
   });
 

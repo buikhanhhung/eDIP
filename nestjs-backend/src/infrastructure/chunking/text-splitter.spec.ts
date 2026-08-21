@@ -43,7 +43,10 @@ describe('splitText', () => {
  * exercise each branch of the splitter.
  */
 describe('RECURSIVE_CHARACTER equals splitText', () => {
-  const service = new ChunkingService();
+  // The strategy under test here ignores the embedding service.
+  // The strategies these tests reach never read the embedding service; the
+  // object satisfies the interface structurally, so no cast is needed.
+  const service = new ChunkingService({ generateEmbeddings: jest.fn() });
 
   const cases: [label: string, text: string][] = [
     ['empty', ''],
@@ -74,7 +77,10 @@ describe('RECURSIVE_CHARACTER equals splitText', () => {
  * every equivalence case above would still pass while the corpus re-chunked.
  */
 describe('RECURSIVE_CHARACTER output at the production defaults', () => {
-  const service = new ChunkingService();
+  // The strategy under test here ignores the embedding service.
+  // The strategies these tests reach never read the embedding service; the
+  // object satisfies the interface structurally, so no cast is needed.
+  const service = new ChunkingService({ generateEmbeddings: jest.fn() });
 
   it('joins paragraphs that fit the budget into one chunk', async () => {
     const text = 'Hợp đồng số 12/2026.\n\nGiá trị 1.850.000 VND, thanh toán trong 30 ngày.';

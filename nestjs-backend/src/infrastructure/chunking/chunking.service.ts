@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { EMBEDDING_SERVICE } from '@infrastructure/ai/ai.di-token';
+import type { IEmbeddingService } from '@infrastructure/ai/ai.port';
 import type { Chunk, ChunkingStrategy, ChunkingStrategyId } from './chunking.types';
 import { documentStructureStrategy } from './document-structure.strategy';
 import { parentChildMarkdownStrategy } from './parent-child-markdown.strategy';
 import { recursiveCharacterStrategy } from './recursive-character.strategy';
+import { semanticStrategy } from './semantic.strategy';
 
 /**
  * A flat lookup from strategy id to implementation.
@@ -16,6 +19,7 @@ const STRATEGIES: Partial<Record<ChunkingStrategyId, ChunkingStrategy>> = {
   RECURSIVE_CHARACTER: recursiveCharacterStrategy,
   PARENT_CHILD_MARKDOWN: parentChildMarkdownStrategy,
   DOCUMENT_STRUCTURE: documentStructureStrategy,
+  SEMANTIC: semanticStrategy,
 };
 
 /**
@@ -33,6 +37,8 @@ export const IMPLEMENTED_CHUNKING_STRATEGIES = Object.entries(STRATEGIES)
 
 @Injectable()
 export class ChunkingService {
+  constructor(@Inject(EMBEDDING_SERVICE) private readonly embeddings: IEmbeddingService) {}
+
   supports(strategy: ChunkingStrategyId): boolean {
     return STRATEGIES[strategy] !== undefined;
   }
@@ -49,6 +55,7 @@ export class ChunkingService {
       const available = IMPLEMENTED_CHUNKING_STRATEGIES.join(', ');
       throw new Error(`Chunking strategy ${strategy} is not implemented (available: ${available})`);
     }
-    return implementation(text);
+    // Handed to every strategy; only `SEMANTIC` reads it.
+    return implementation(text, this.embeddings);
   }
 }

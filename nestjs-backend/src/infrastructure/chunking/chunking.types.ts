@@ -1,3 +1,5 @@
+import type { IEmbeddingService } from '@infrastructure/ai/ai.port';
+
 /**
  * The four strategies a document can be chunked with, chosen at upload.
  *
@@ -42,5 +44,10 @@ export interface Chunk {
  * Asynchronous even though three of the four strategies compute synchronously:
  * `SEMANTIC` has to embed sentences to find its boundaries, and a signature
  * that changes once every call site is written is a signature written twice.
+ *
+ * The embedding service is passed in rather than imported, so only the strategy
+ * that needs it depends on it and the other three stay pure functions of their
+ * text. They declare one parameter and ignore the second, which TypeScript
+ * accepts — a narrower function is assignable to a wider signature.
  */
-export type ChunkingStrategy = (text: string) => Promise<Chunk[]>;
+export type ChunkingStrategy = (text: string, embeddings?: IEmbeddingService) => Promise<Chunk[]>;

@@ -1,3 +1,4 @@
+import { IMPLEMENTED_CHUNKING_STRATEGIES } from '@infrastructure/chunking/chunking.service';
 import { DEFAULT_CHUNKING_STRATEGY } from '@infrastructure/chunking/chunking.types';
 import { parseChunkingStrategy } from './chunking-strategy-input';
 
@@ -18,13 +19,22 @@ describe('parseChunkingStrategy', () => {
   });
 
   /**
-   * The four ids are the column's vocabulary; only some of them have an
-   * implementation at any given time. Accepting a listed-but-unimplemented one
-   * would take the upload, queue it, and fail the job on the user's document —
-   * a rejection at the door is the honest answer.
+   * The check is against what is implemented, not against the column's
+   * vocabulary. All four ids happen to be implemented now, so this asserts the
+   * agreement rather than a hard-coded list: were one removed or put behind a
+   * flag, accepting it here would take the upload, queue it, and fail the job
+   * on the user's document.
    */
-  it('rejects a listed strategy that has no implementation yet', () => {
-    expect(parseChunkingStrategy('SEMANTIC')).toBeNull();
+  it('accepts exactly the strategies that have an implementation', () => {
+    for (const id of IMPLEMENTED_CHUNKING_STRATEGIES) {
+      expect(parseChunkingStrategy(id)).toBe(id);
+    }
+    expect(IMPLEMENTED_CHUNKING_STRATEGIES).toContain('SEMANTIC');
+  });
+
+  it('rejects a strategy id that was declared but never implemented', () => {
+    // Reaches the same guard a stale value read back from the database would.
+    expect(parseChunkingStrategy('NUMBERED_SECTION')).toBeNull();
   });
 
   it('rejects values that are not strings', () => {
