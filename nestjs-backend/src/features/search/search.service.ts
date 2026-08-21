@@ -5,10 +5,11 @@ import type { IEmbeddingService } from '@infrastructure/ai/ai.port';
 import { VectorStoreService } from '@infrastructure/vector-store/vector-store.service';
 import { PrismaService } from '@shared/database/prisma.service';
 import { fuseRanks } from './rrf';
+import { resolveSearchOptions, type SearchOptions } from './search-options';
 import { buildSnippet, type Snippet } from './snippet';
 
-const LANE_LIMIT = 10;
-const RESULT_LIMIT = 10;
+// Defaults now live with the option resolver; a request that sends none gets
+// exactly these, which are the values this file used to hard-code.
 
 export interface SearchHit {
   id: string;
@@ -45,19 +46,23 @@ export class SearchService {
     private readonly vectorStore: VectorStoreService,
   ) {}
 
-  async search(query: string): Promise<SearchResponse> {
+  async search(query: string, requested: Partial<SearchOptions> = {}): Promise<SearchResponse> {
+    const options = resolveSearchOptions(requested);
+
     // allSettled, not all: the vector lane calls Bedrock, and one throttled
     // response must not take down an endpoint Postgres can still answer.
+    // A lane switched off resolves empty rather than being skipped in the
+    // fusion, so the shape below stays the same whichever lanes ran.
     const [vectorLane, lexicalLane] = await Promise.allSettled([
-      this.vectorLane(query),
-      this.lexicalLane(query),
+      options.lanes === 'lexical' ? Promise.resolve([]) : this.vectorLane(query, options.laneLimit),
+      options.lanes === 'vector' ? Promise.resolve([]) : this.lexicalLane(query, options.laneLimit),
     ]);
 
     const vectorIds = this.laneIds(vectorLane, 'vector');
     const lexicalIds = this.laneIds(lexicalLane, 'lexical');
     const degraded = vectorLane.status === 'rejected' || lexicalLane.status === 'rejected';
 
-    const fused = fuseRanks([vectorIds, lexicalIds]).slice(0, RESULT_LIMIT);
+    const fused = fuseRanks([vectorIds, lexicalIds]).slice(0, options.resultLimit);
     if (fused.length === 0) return { hits: [], degraded };
 
     const documents = await this.prisma.document.findMany({
@@ -89,7 +94,11 @@ export class SearchService {
             filename: doc.filename,
             documentType: doc.documentType,
             score: entry.score,
-            snippet: buildSnippet(doc.textContent ?? doc.summary ?? '', query),
+            snippet: buildSnippet(
+              doc.textContent ?? doc.summary ?? '',
+              query,
+              options.snippetRadius,
+            ),
             lanes,
           },
         ];
@@ -98,9 +107,9 @@ export class SearchService {
   }
 
   /** Chunk hits collapsed to their best-ranked document. */
-  private async vectorLane(query: string): Promise<string[]> {
+  private async vectorLane(query: string, laneLimit: number): Promise<string[]> {
     const [embedding] = await this.embeddings.generateEmbeddings([query], 'search_query');
-    const hits = await this.vectorStore.searchByEmbedding(embedding, LANE_LIMIT);
+    const hits = await this.vectorStore.searchByEmbedding(embedding, laneLimit);
 
     const seen: string[] = [];
     for (const hit of hits) {
@@ -119,7 +128,7 @@ export class SearchService {
    * same wall and answered it with a coverage floor; this is that lesson, in
    * one extra subquery.
    */
-  private async lexicalLane(query: string): Promise<string[]> {
+  private async lexicalLane(query: string, laneLimit: number): Promise<string[]> {
     const terms = splitSearchTerms(query);
     if (terms.length === 0) return [];
     const tsquery = terms.join(' | ');
@@ -135,7 +144,7 @@ export class SearchService {
        LIMIT $3`,
       tsquery,
       terms,
-      LANE_LIMIT,
+      laneLimit,
     );
     return rows.map((row) => row.id);
   }

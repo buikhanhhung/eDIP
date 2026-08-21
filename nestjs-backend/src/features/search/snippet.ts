@@ -25,7 +25,7 @@ export interface Snippet {
   matchEnd: number | null;
 }
 
-export function buildSnippet(text: string, query: string): Snippet {
+export function buildSnippet(text: string, query: string, radius = RADIUS): Snippet {
   if (!text) return { text: '', matchStart: null, matchEnd: null };
 
   const terms = foldForMatching(query)
@@ -43,15 +43,19 @@ export function buildSnippet(text: string, query: string): Snippet {
     .sort((a, b) => a - b);
 
   if (found.length === 0) {
-    const head = text.slice(0, RADIUS * 2).trim();
-    return { text: head + (text.length > head.length ? '…' : ''), matchStart: null, matchEnd: null };
+    const head = text.slice(0, radius * 2).trim();
+    return {
+      text: head + (text.length > head.length ? '…' : ''),
+      matchStart: null,
+      matchEnd: null,
+    };
   }
 
   const hit = found[0];
   const termLength = terms.find((term) => folded.indexOf(term) === hit)?.length ?? 0;
 
-  const start = Math.max(0, hit - RADIUS);
-  const end = Math.min(text.length, hit + termLength + RADIUS);
+  const start = Math.max(0, hit - radius);
+  const end = Math.min(text.length, hit + termLength + radius);
   const prefix = start > 0 ? '…' : '';
   const suffix = end < text.length ? '…' : '';
 
