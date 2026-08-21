@@ -1,4 +1,4 @@
-import { ChunkingService } from './chunking.service';
+import { ChunkingService, IMPLEMENTED_CHUNKING_STRATEGIES } from './chunking.service';
 import { CHUNKING_STRATEGIES } from './chunking.types';
 
 describe('ChunkingService', () => {
@@ -15,7 +15,17 @@ describe('ChunkingService', () => {
    * gap is asserted here, where it costs a red test instead of a failed job.
    */
   it('offers exactly the strategies it has registered', () => {
-    const registered = CHUNKING_STRATEGIES.filter((id) => service.supports(id));
-    expect(registered).toEqual(['RECURSIVE_CHARACTER']);
+    expect(IMPLEMENTED_CHUNKING_STRATEGIES).toEqual(['RECURSIVE_CHARACTER']);
+  });
+
+  /**
+   * The API validates against the exported list while the pipeline dispatches
+   * through `supports()`. If those two ever disagree, an upload is accepted for
+   * a strategy that cannot run it — so they are asserted against each other
+   * rather than each against a hard-coded answer.
+   */
+  it('advertises the same set it can dispatch', () => {
+    const dispatchable = CHUNKING_STRATEGIES.filter((id) => service.supports(id));
+    expect(dispatchable).toEqual(IMPLEMENTED_CHUNKING_STRATEGIES);
   });
 });

@@ -12,6 +12,7 @@ import { PrismaService } from '@shared/database/prisma.service';
 import { QUEUE_NAMES } from '@shared/queue/queue.constants';
 import { GRAPH_STORE } from '@features/graph/graph.di-token';
 import type { IGraphStore } from '@features/graph/graph.port';
+import { parseChunkingStrategy } from './chunking-strategy-input';
 import { DocumentAnalysisService } from './services/document-analysis.service';
 import { EntityExtractionService } from './services/entity-extraction.service';
 import { TextExtractionService } from './services/text-extraction.service';
@@ -82,7 +83,19 @@ export class IngestConsumer extends WorkerHost {
       const analysis = await this.analysis.analyse(extracted.text, document.filename);
 
       step('chunk');
-      const strategy = DEFAULT_CHUNKING_STRATEGY;
+      // A null column is the ordinary case — rows written before the choice
+      // existed, and imports that never make one — and the parser answers it
+      // with the default. Reaching the fallback below means the column held
+      // something unusable, which is worth saying out loud: the document would
+      // otherwise claim one strategy while its chunks record another.
+      const stored = parseChunkingStrategy(document.chunkingStrategy);
+      if (stored === null) {
+        this.logger.warn(
+          `[${documentId}] unusable chunking_strategy ${JSON.stringify(document.chunkingStrategy)}; ` +
+            `chunking with ${DEFAULT_CHUNKING_STRATEGY} instead`,
+        );
+      }
+      const strategy = stored ?? DEFAULT_CHUNKING_STRATEGY;
       const chunks = await this.chunking.split(extracted.text, strategy);
       // The embedding and graph steps take plain strings; only the retrieval
       // row carries a chunk's parent and metadata.

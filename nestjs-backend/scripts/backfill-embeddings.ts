@@ -5,6 +5,7 @@ import { EMBEDDING_SERVICE } from '../src/infrastructure/ai/ai.di-token';
 import type { IEmbeddingService } from '../src/infrastructure/ai/ai.port';
 import { ChunkingService } from '../src/infrastructure/chunking/chunking.service';
 import { DEFAULT_CHUNKING_STRATEGY } from '../src/infrastructure/chunking/chunking.types';
+import { parseChunkingStrategy } from '../src/features/ingestion/chunking-strategy-input';
 import { VectorStoreService } from '../src/infrastructure/vector-store/vector-store.service';
 import { PrismaService } from '../src/shared/database/prisma.service';
 
@@ -36,14 +37,29 @@ async function main() {
 
   const documents = await prisma.document.findMany({
     where: { status: 'completed', textContent: { not: null } },
-    select: { id: true, filename: true, textContent: true },
+    select: { id: true, filename: true, textContent: true, chunkingStrategy: true },
   });
 
   logger.log(`${documents.length} completed documents with text`);
 
   let totalChunks = 0;
   for (const document of documents) {
-    const chunks = await chunking.split(document.textContent ?? '', DEFAULT_CHUNKING_STRATEGY);
+    // Each document's own choice, not a blanket default: this loop purges and
+    // rewrites every completed document, so defaulting here would overwrite
+    // the strategy its uploader picked — and drop whatever the hierarchical
+    // strategies stored alongside it.
+    const stored = parseChunkingStrategy(document.chunkingStrategy);
+    if (stored === null) {
+      // Louder here than in the worker: this rewrite is not coming back, so a
+      // downgrade that goes unmentioned is a permanent disagreement between
+      // the document row and its chunks.
+      logger.warn(
+        `${document.filename}: unusable chunking_strategy ` +
+          `${JSON.stringify(document.chunkingStrategy)}; using ${DEFAULT_CHUNKING_STRATEGY}`,
+      );
+    }
+    const strategy = stored ?? DEFAULT_CHUNKING_STRATEGY;
+    const chunks = await chunking.split(document.textContent ?? '', strategy);
     if (chunks.length === 0) {
       logger.warn(`${document.filename}: no chunks, skipping`);
       continue;
@@ -56,7 +72,7 @@ async function main() {
       chunks.map((chunk, index) => ({
         documentId: document.id,
         content: chunk.content,
-        chunkingStrategy: DEFAULT_CHUNKING_STRATEGY,
+        chunkingStrategy: strategy,
         chunkIndex: index,
       })),
     );

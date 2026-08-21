@@ -1,0 +1,25 @@
+-- How the uploader asked for a document to be chunked, chosen at upload time
+-- and read once by the ingest worker.
+--
+-- Nullable with no default on purpose: every existing row was chunked before
+-- there was a choice, and the worker reads null as "no preference" and applies
+-- the default. Backfilling a value would claim those rows were chosen when
+-- they were not.
+--
+-- Not an enum, unlike "source". The set of strategies changes faster than the
+-- column should, and widening a Postgres enum is a migration every time; a
+-- string column costs one validation at the door instead.
+--
+-- Reversing this is four steps, not one. Dropping the column alone leaves the
+-- Prisma schema still declaring the field, and the client selects it by name --
+-- so every read of Document fails with P2022, not just the ingest path:
+--   1. ALTER TABLE "Document" DROP COLUMN "chunking_strategy";
+--   2. remove `chunkingStrategy` from model Document in schema.prisma
+--   3. prisma generate
+--   4. prisma migrate resolve --rolled-back 20260821100000_add_document_chunking_strategy
+--
+-- Written by hand rather than generated, for the same reason as
+-- 20260812210000_document_source: the generated diff also wants to drop
+-- "search_tsv", a generated column the Prisma schema cannot express, which
+-- would silently disable full-text search.
+ALTER TABLE "Document" ADD COLUMN "chunking_strategy" TEXT;

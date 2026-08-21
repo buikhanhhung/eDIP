@@ -3,6 +3,10 @@ import { BadRequestException, ConflictException, Injectable, Logger } from '@nes
 import type { DocumentSource } from '@prisma/client';
 import type { Queue } from 'bullmq';
 import { decodeMultipartFilename } from '@common/text/decode-multipart-filename';
+import {
+  DEFAULT_CHUNKING_STRATEGY,
+  type ChunkingStrategyId,
+} from '@infrastructure/chunking/chunking.types';
 import { allowedTypeFor, rejectionMessage } from '@infrastructure/storage/allowlist';
 import { LocalStorageService } from '@infrastructure/storage/local-storage.service';
 import { PrismaService } from '@shared/database/prisma.service';
@@ -33,8 +37,16 @@ export class IngestionService {
    * `source` records which door the file came through, so the library can
    * report what a connector actually contributed. It defaults to a browser
    * upload because that is the only door that existed first.
+   *
+   * `chunkingStrategy` comes last and defaults, so the Drive importer keeps
+   * calling this with three arguments and keeps getting the default.
    */
-  async upload(file: UploadedFile, ownerId: string, source: DocumentSource = 'upload') {
+  async upload(
+    file: UploadedFile,
+    ownerId: string,
+    source: DocumentSource = 'upload',
+    chunkingStrategy: ChunkingStrategyId = DEFAULT_CHUNKING_STRATEGY,
+  ) {
     const filename = decodeMultipartFilename(file.originalname);
 
     // Extension decides the type. `file.mimetype` is the client's
@@ -66,6 +78,7 @@ export class IngestionService {
         contentHash,
         ownerId,
         source,
+        chunkingStrategy,
         status: 'uploaded',
       },
       select: { id: true, filename: true, status: true, uploadedAt: true },

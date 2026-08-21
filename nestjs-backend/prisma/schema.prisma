@@ -83,6 +83,12 @@ model Document {
   /// correct value for every row written before connectors existed.
   source DocumentSource @default(upload)
 
+  /// How the uploader asked for this document to be chunked, read by the
+  /// ingest worker. Null on every row written before the choice existed, and
+  /// on imports that never make one, so the worker falls back to the default.
+  /// Not an enum: the set of strategies changes faster than the column should.
+  chunkingStrategy String? @map("chunking_strategy")
+
   status DocumentStatus @default(uploaded)
   error  String?
 

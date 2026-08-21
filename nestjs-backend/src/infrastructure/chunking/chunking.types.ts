@@ -30,7 +30,11 @@ export interface Chunk {
    * Setting it is therefore pointless until that INSERT carries it.
    */
   parentContent?: string;
-  /** Per-strategy provenance, persisted to the `metadata` column. */
+  /**
+   * Per-strategy provenance — which section a chunk came from, and the like.
+   * The table has the column; `replaceChunks` does not yet write it, so this
+   * shares `parentContent`'s fate until that INSERT carries both.
+   */
   metadata?: Record<string, unknown>;
 }
 

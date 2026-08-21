@@ -10,14 +10,27 @@ import { recursiveCharacterStrategy } from './recursive-character.strategy';
  * strategy — costs 13 files to answer a question a `Record` answers. What is
  * wanted here is the list of strategies, not a layer between the caller and it.
  */
+const STRATEGIES: Partial<Record<ChunkingStrategyId, ChunkingStrategy>> = {
+  RECURSIVE_CHARACTER: recursiveCharacterStrategy,
+};
+
+/**
+ * The strategies that exist right now, as opposed to the four the column can
+ * hold. Exported so the upload endpoint can refuse a strategy nobody has
+ * written yet at the door, instead of accepting the file and failing its job.
+ */
+export const IMPLEMENTED_CHUNKING_STRATEGIES = Object.entries(STRATEGIES)
+  // Filtered on the value, not just the key: a registry entry that resolves to
+  // `undefined` — a strategy put behind a config flag, say — would otherwise be
+  // offered by the API and then throw in `split()`, which is the failure the
+  // rejection at the door exists to prevent.
+  .filter(([, implementation]) => implementation !== undefined)
+  .map(([id]) => id as ChunkingStrategyId);
+
 @Injectable()
 export class ChunkingService {
-  private readonly strategies: Partial<Record<ChunkingStrategyId, ChunkingStrategy>> = {
-    RECURSIVE_CHARACTER: recursiveCharacterStrategy,
-  };
-
   supports(strategy: ChunkingStrategyId): boolean {
-    return this.strategies[strategy] !== undefined;
+    return STRATEGIES[strategy] !== undefined;
   }
 
   /**
@@ -27,9 +40,9 @@ export class ChunkingService {
    * that looks like a successful one.
    */
   async split(text: string, strategy: ChunkingStrategyId): Promise<Chunk[]> {
-    const implementation = this.strategies[strategy];
+    const implementation = STRATEGIES[strategy];
     if (!implementation) {
-      const available = Object.keys(this.strategies).join(', ');
+      const available = IMPLEMENTED_CHUNKING_STRATEGIES.join(', ');
       throw new Error(`Chunking strategy ${strategy} is not implemented (available: ${available})`);
     }
     return implementation(text);
