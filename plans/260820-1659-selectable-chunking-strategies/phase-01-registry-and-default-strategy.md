@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Registry And Default Strategy"
-status: pending
+status: done
 priority: P1
 dependencies: []
 effort: "1.5h"
@@ -83,11 +83,30 @@ Chữ ký `async` ngay từ đầu dù 3 chiến lược đầu đồng bộ, đ
 
 ## Success Criteria
 
-- [ ] Test tương đương pass: `splitText` và service cho kết quả giống nhau trên cả 5 đầu vào
-- [ ] Gọi chiến lược chưa đăng ký → lỗi nêu tên, không thoái lui âm thầm
-- [ ] `pnpm test` → **185 + số test mới**, không test cũ nào bị sửa để pass
-- [ ] `npx tsc --noEmit` sạch
-- [ ] Upload thử một tệp → `chunking_strategy = 'RECURSIVE_CHARACTER'`, số chunk như trước
+- [x] Test tương đương pass: `splitText` và service cho kết quả giống nhau trên cả 5 đầu vào
+- [x] Gọi chiến lược chưa đăng ký → lỗi nêu tên, không thoái lui âm thầm
+- [x] `pnpm test` → **194** (185 + 9 mới), không test cũ nào bị sửa để pass (`git diff --numstat` trên `text-splitter.spec.ts` = `28 0`, không xoá dòng nào)
+- [x] `npx tsc --noEmit` sạch
+- [x] Upload thử một tệp → `chunking_strategy = 'RECURSIVE_CHARACTER'`, 1 chunk cho fixture 2 đoạn (đúng hành vi `splitText`), `parent_content` NULL
+
+## Đã triển khai — 21/08/2026
+
+Khác với phase file, đều là cố ý:
+
+| Việc | Vì sao |
+|---|---|
+| `chunks` có **3** chỗ tiêu thụ trong `ingest.consumer.ts`, không phải 2 | `graphExtraction.extractForDocument(…, chunks)` cũng nhận `string[]`. Hoisted một biến `contents` dùng cho cả nó và `generateEmbeddings`; `replaceChunks` nhận `Chunk[]` |
+| Xoá hằng `CHUNKING_STRATEGY = 'recursive'` khỏi `text-splitter.ts` | Sau khi cả 2 chỗ gọi đổi sang registry thì nó thành code chết. Grep xác nhận 0 tham chiếu còn lại; chuỗi `'recursive'` không còn xuất hiện trong code. Drift 3 giá trị giờ **không thể xảy ra về mặt cấu trúc**, không chỉ là tránh được |
+| Thêm `supports()` + spec chốt registry đúng bằng `['RECURSIVE_CHARACTER']` | Bắt trường hợp "có trong `CHUNKING_STRATEGIES` mà chưa đăng ký" — nếu không thì lỗi chỉ hiện ra lúc job chạy trên tài liệu thật. Mỗi phase 3/4/5 phải sửa đúng 1 dòng này |
+| Thêm 2 test **ghim đầu ra** ở tham số mặc định | Review chỉ ra 5 test tương đương là **tự tham chiếu**: chúng tính giá trị mong đợi bằng cách chạy lại chính implementation, nên không phát hiện được `splitText` đổi đầu ra. Đã chứng minh bằng mutation: đổi `overlap` 100→50 thì **chỉ** test ghim mới đỏ, cả 5 test tương đương và 5 test `splitText` cũ đều xanh. Quan trọng vì phase 3 dự định gọi `splitText(thân, 500, 100)` |
+| `scripts/` vào cả 2 cổng chất lượng | `tsconfig.json` include thêm `scripts/**/*`; `lint` glob thêm `scripts`. Để `nest build` không đổi layout output, `tsconfig.build.json` được **ghim** `include: ["src/**/*"]` — nếu không, gốc suy ra dịch lên một cấp và `dist/main.js` thành `dist/src/main.js`, phá `start:prod`. Đã verify `dist/main.js` còn nguyên, không có `dist/scripts` |
+| Sửa `await` vô nghĩa ở `scripts/reset-corpus.ts:45` | Cổng lint mới vừa bật đã bắt được ngay. `falkor.selectGraph()` trả về `Graph` đồng bộ nên `await` trong là no-op. Không đổi hành vi |
+
+**Ghi nhận trung thực:**
+
+- `pnpm lint` **đã đỏ từ trước** trên `master`: 121 lỗi trong `src/` (67 là `prettier/prettier`), cộng 1 parsing error ở `test/app.e2e-spec.ts` vì `tsconfig` exclude `test`. Việc mở rộng glob sang `scripts/` **không thêm lỗi nào** — `scripts/**/*.ts` sạch 0 lỗi. Dọn 121 lỗi cũ nằm ngoài phạm vi plan này
+- Lượt kiểm live chạy qua application context (`IngestionService.upload()` → queue → `IngestConsumer`), không qua HTTP: phase 1 chưa có API. Tài liệu test đã xoá sạch, corpus về đúng 33 tài liệu / 104 chunk
+- Trong tiến trình kiểm đó **graph extraction không chạy** — `FalkorDB is not connected`, dù container đang healthy và `FALKORDB_PORT` được `z.coerce.number()` đúng. Đường thoái lui hoạt động như thiết kế (tài liệu vẫn `completed`). Nghĩa là đối số `contents` truyền vào `extractForDocument` **chưa được chạy thật** — chỉ được typecheck bảo đảm, và giá trị thì giống hệt `chunks` cũ. Nguyên nhân không liên quan tới chunking, cần xem lại khi chạy app thật
 
 ## Risk Assessment
 

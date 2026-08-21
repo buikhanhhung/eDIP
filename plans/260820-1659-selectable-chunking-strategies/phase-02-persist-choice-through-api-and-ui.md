@@ -50,6 +50,7 @@ Frontend: `document-types.ts` thêm `CHUNKING_LABELS: Record<string,string>` the
 - `nestjs-backend/src/features/ingestion/ingest.consumer.ts` — đọc `document.chunkingStrategy`, thoái lui mặc định khi null
 - `frontend/src/features/documents/document-types.ts` — `CHUNKING_LABELS`
 - `frontend/src/features/upload/upload-page.tsx` — `Select` + gửi field
+- `nestjs-backend/scripts/backfill-embeddings.ts` — **mới thêm sau review phase 1**. Script chọn *mọi* tài liệu `completed` rồi `replaceChunks` (purge-then-insert). Từ phase này trở đi mỗi tài liệu có lựa chọn riêng, nên script phải đọc `document.chunkingStrategy` thay vì dùng `DEFAULT_CHUNKING_STRATEGY`, kèm `select` thêm field đó
 
 **Create**
 - `nestjs-backend/prisma/migrations/<ts>_add_document_chunking_strategy/migration.sql`
@@ -91,3 +92,5 @@ Frontend: `document-types.ts` thêm `CHUNKING_LABELS: Record<string,string>` the
 | Thêm tham số vào `upload()` phá chỗ gọi khác | Đã kiểm: chỉ 2 chỗ gọi — controller và `drive-import.consumer.ts`. Đặt tham số sau `source` với mặc định nên Drive không cần sửa |
 | Dropdown 1 lựa chọn nhìn vô nghĩa | Ẩn khi < 2 entry — một dòng, và giữ phase này tự nhất quán |
 | Zod enum lệch với registry | Import trực tiếp `CHUNKING_STRATEGIES` từ `chunking.types.ts`, không viết lại danh sách |
+| API nhận 4 giá trị nhưng registry mới đăng ký 1 → chọn `SEMANTIC` ở phase này làm job **failed** | Validate theo `chunking.supports()` chứ không theo `CHUNKING_STRATEGIES` trần, hoặc để dropdown chỉ hiện khoá đã đăng ký. Phát hiện ở review phase 1 |
+| `pnpm backfill:embeddings` xoá lựa chọn của người dùng | Script purge-then-insert toàn bộ tài liệu `completed`. Nếu vẫn ghi `DEFAULT_CHUNKING_STRATEGY`, một lần chạy sẽ đè `chunking_strategy` của mọi tài liệu về `RECURSIVE_CHARACTER` — và sau phase 3 còn xoá luôn `parent_content`. Sửa trong phase này: đọc chiến lược từ chính `Document` |
