@@ -2,9 +2,13 @@ import { randomBytes } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EMBEDDING_SERVICE, LLM_SERVICE } from '@infrastructure/ai/ai.di-token';
 import type { IEmbeddingService, ILlmService } from '@infrastructure/ai/ai.port';
-import { VectorStoreService, type ChunkHit } from '@infrastructure/vector-store/vector-store.service';
+import {
+  VectorStoreService,
+  type ChunkHit,
+} from '@infrastructure/vector-store/vector-store.service';
 import { PrismaService } from '@shared/database/prisma.service';
 import { fuseRanks } from '@features/search/rrf';
+import { distinctByContent } from './distinct-context';
 import { buildSnippet } from '@features/search/snippet';
 
 const LANE_LIMIT = 8;
@@ -189,12 +193,12 @@ export class AskService {
     };
 
     const fused = fuseRanks([laneIds(vector, 'vector'), laneIds(lexical, 'lexical')]);
-    return fused
-      .slice(0, CONTEXT_CHUNKS)
-      .flatMap((entry) => {
-        const hit = byId.get(entry.id);
-        return hit ? [hit] : [];
-      });
+    const ranked = fused.flatMap((entry) => {
+      const hit = byId.get(entry.id);
+      return hit ? [hit] : [];
+    });
+
+    return distinctByContent(ranked, CONTEXT_CHUNKS);
   }
 
   private async toCitations(
