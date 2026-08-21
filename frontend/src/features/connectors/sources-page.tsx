@@ -20,6 +20,7 @@ import { PageHeader } from '@/components/page-header';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CHUNKING_LABELS } from '@/features/documents/document-types';
+import { PlannedConnectors } from './planned-connectors';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
 import { openDrivePicker, type PickedEntry } from '@/lib/google-picker';
 import { cn, formatDate } from '@/lib/utils';
@@ -210,6 +211,8 @@ export function SourcesPage() {
           restart it.
         </p>
       )}
+
+      <PlannedConnectors />
 
       {pick.isError && (
         <p className="rounded-md bg-danger-light px-3 py-2 text-sm text-danger-base">
