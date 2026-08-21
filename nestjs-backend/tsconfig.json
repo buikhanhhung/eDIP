@@ -27,6 +27,6 @@
       "@infrastructure/*": ["src/infrastructure/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "scripts/**/*"],
   "exclude": ["node_modules", "test", "dist"]
 }

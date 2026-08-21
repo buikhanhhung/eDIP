@@ -14,7 +14,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "backfill:embeddings": "ts-node -r tsconfig-paths/register scripts/backfill-embeddings.ts",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "lint": "eslint \"{src,apps,libs,scripts,test}/**/*.ts\" --fix",
     "test": "cross-env NODE_OPTIONS=--max-old-space-size=4096 jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

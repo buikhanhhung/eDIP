@@ -42,7 +42,7 @@ async function main() {
   // Dropping the graph takes its indexes with it; the app rebuilds them when
   // it next boots.
   try {
-    await (await falkor.selectGraph(graphName)).delete();
+    await falkor.selectGraph(graphName).delete();
     console.log(`falkordb: dropped graph "${graphName}"`);
   } catch (error) {
     // A missing graph is the state we were aiming for anyway.

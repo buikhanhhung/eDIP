@@ -1,4 +1,6 @@
 {
   "extends": "./tsconfig.json",
+  "// include": "Pinned to src so the shipped layout stays dist/main.js. tsconfig.json also covers scripts/ for typechecking, and inheriting that would move the inferred root up a level and break `start:prod`.",
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
 }
