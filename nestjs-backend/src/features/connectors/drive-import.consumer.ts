@@ -1,6 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
+import type { ChunkingStrategyId } from '@infrastructure/chunking/chunking.types';
 import { IngestionService } from '@features/ingestion/ingestion.service';
 import { QUEUE_NAMES } from '@shared/queue/queue.constants';
 import { GoogleDriveService } from './google-drive.service';
@@ -8,6 +9,11 @@ import { GoogleDriveService } from './google-drive.service';
 export interface DriveImportJobData {
   ownerId: string;
   file: { id: string; name: string; mimeType: string };
+  /**
+   * Chosen once for the whole selection and carried per file, because each file
+   * is its own job by the time it reaches the pipeline.
+   */
+  chunkingStrategy: ChunkingStrategyId;
 }
 
 /**
@@ -34,7 +40,7 @@ export class DriveImportConsumer extends WorkerHost {
   }
 
   async process(job: Job<DriveImportJobData>): Promise<void> {
-    const { ownerId, file } = job.data;
+    const { ownerId, file, chunkingStrategy } = job.data;
 
     let bytes: Buffer;
     let filename: string;
@@ -55,6 +61,7 @@ export class DriveImportConsumer extends WorkerHost {
         { originalname: filename, buffer: bytes, size: bytes.length },
         ownerId,
         'google_drive',
+        chunkingStrategy,
       );
     } catch (failure) {
       // Both of these are settled outcomes. Rethrowing would spend the retry

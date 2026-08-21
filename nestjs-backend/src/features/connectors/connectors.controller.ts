@@ -19,6 +19,8 @@ import {
   QUEUE_NAMES,
 } from '@shared/queue/queue.constants';
 import type { DriveImportJobData } from './drive-import.consumer';
+import { IMPLEMENTED_CHUNKING_STRATEGIES } from '@infrastructure/chunking/chunking.service';
+import { DEFAULT_CHUNKING_STRATEGY } from '@infrastructure/chunking/chunking.types';
 import { GoogleDriveService } from './google-drive.service';
 
 /**
@@ -35,6 +37,12 @@ const MAX_FOLDER_DEPTH = 10;
 
 /** What the picker hands back, folders included. */
 const importSchema = z.object({
+  /**
+   * How the selection should be chunked. Validated against the strategies that
+   * exist rather than the column's vocabulary, so an id nobody implemented is
+   * refused here instead of failing each file's job later.
+   */
+  chunkingStrategy: z.enum(IMPLEMENTED_CHUNKING_STRATEGIES).default(DEFAULT_CHUNKING_STRATEGY),
   files: z
     .array(
       z.object({
@@ -160,6 +168,7 @@ export class ConnectorsController {
         data: {
           ownerId: user.id,
           file: { id: file.id, name: file.name, mimeType: file.mimeType },
+          chunkingStrategy: body.chunkingStrategy,
         },
         opts: DRIVE_IMPORT_JOB_OPTIONS,
       })),

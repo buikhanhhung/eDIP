@@ -14,10 +14,12 @@ import {
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Capability } from '@/components/capability';
+import { ChunkingStrategyDialog } from '@/components/chunking-strategy-dialog';
 import { GoogleDriveLogo } from '@/components/google-drive-logo';
 import { PageHeader } from '@/components/page-header';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { CHUNKING_LABELS } from '@/features/documents/document-types';
 import { apiClient, extractErrorMessage } from '@/lib/api-client';
 import { openDrivePicker, type PickedEntry } from '@/lib/google-picker';
 import { cn, formatDate } from '@/lib/utils';
@@ -46,6 +48,10 @@ export function SourcesPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
+  // Asked before Drive opens, for the same reason as a local upload: the answer
+  // decides how every file in the selection is read.
+  const [asking, setAsking] = useState(false);
+  const [chunking, setChunking] = useState(Object.keys(CHUNKING_LABELS)[0]);
 
   const callbackError = searchParams.get('error');
 
@@ -80,7 +86,7 @@ export function SourcesPage() {
    * trusted with, and the shorter its life here the better.
    */
   const pick = useMutation({
-    mutationFn: async (): Promise<ImportOutcome | null> => {
+    mutationFn: async (chunkingStrategy: string): Promise<ImportOutcome | null> => {
       const config = (await apiClient.get<PickerConfig>('/connectors/google/picker-config')).data;
       if (!config.ready) {
         throw new Error(
@@ -93,6 +99,7 @@ export function SourcesPage() {
 
       return (
         await apiClient.post<ImportOutcome>('/connectors/google/import', {
+          chunkingStrategy,
           files: picked.map((entry) => ({
             id: entry.id,
             name: entry.name,
@@ -115,6 +122,18 @@ export function SourcesPage() {
 
   return (
     <div className="space-y-6">
+      <ChunkingStrategyDialog
+        open={asking}
+        value={chunking}
+        onChange={setChunking}
+        onConfirm={(strategy) => {
+          setAsking(false);
+          pick.mutate(strategy);
+        }}
+        onCancel={() => setAsking(false)}
+        confirmLabel="Choose from Drive"
+      />
+
       <PageHeader
         icon={Cloud}
         title="Sources"
@@ -148,7 +167,7 @@ export function SourcesPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             {connected && (
-              <Button disabled={pick.isPending} onClick={() => pick.mutate()}>
+              <Button disabled={pick.isPending} onClick={() => setAsking(true)}>
                 <FolderOpen className="mr-1.5 size-4" />
                 {pick.isPending ? 'Opening Drive…' : 'Choose from Drive'}
               </Button>
