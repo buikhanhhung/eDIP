@@ -4,7 +4,8 @@ import type { Prisma } from '@prisma/client';
 import type { Job } from 'bullmq';
 import { EMBEDDING_SERVICE } from '@infrastructure/ai/ai.di-token';
 import type { IEmbeddingService } from '@infrastructure/ai/ai.port';
-import { CHUNKING_STRATEGY, splitText } from '@infrastructure/chunking/text-splitter';
+import { ChunkingService } from '@infrastructure/chunking/chunking.service';
+import { DEFAULT_CHUNKING_STRATEGY } from '@infrastructure/chunking/chunking.types';
 import { LocalStorageService } from '@infrastructure/storage/local-storage.service';
 import { VectorStoreService } from '@infrastructure/vector-store/vector-store.service';
 import { PrismaService } from '@shared/database/prisma.service';
@@ -41,6 +42,7 @@ export class IngestConsumer extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly storage: LocalStorageService,
     private readonly extraction: TextExtractionService,
+    private readonly chunking: ChunkingService,
     private readonly analysis: DocumentAnalysisService,
     private readonly vectorStore: VectorStoreService,
     @Inject(EMBEDDING_SERVICE) private readonly embeddings: IEmbeddingService,
@@ -80,15 +82,19 @@ export class IngestConsumer extends WorkerHost {
       const analysis = await this.analysis.analyse(extracted.text, document.filename);
 
       step('chunk');
-      const chunks = splitText(extracted.text);
+      const strategy = DEFAULT_CHUNKING_STRATEGY;
+      const chunks = await this.chunking.split(extracted.text, strategy);
+      // The embedding and graph steps take plain strings; only the retrieval
+      // row carries a chunk's parent and metadata.
+      const contents = chunks.map((chunk) => chunk.content);
 
       step('persist');
       await this.vectorStore.replaceChunks(
         documentId,
-        chunks.map((content, index) => ({
+        chunks.map((chunk, index) => ({
           documentId,
-          content,
-          chunkingStrategy: CHUNKING_STRATEGY,
+          content: chunk.content,
+          chunkingStrategy: strategy,
           chunkIndex: index,
         })),
       );
@@ -97,7 +103,7 @@ export class IngestConsumer extends WorkerHost {
       // both at once would mean a throttled embedding call loses the text too,
       // and re-running would have nothing to replace.
       step('embed');
-      const vectors = await this.embeddings.generateEmbeddings(chunks, 'search_document');
+      const vectors = await this.embeddings.generateEmbeddings(contents, 'search_document');
       for (const [index, vector] of vectors.entries()) {
         await this.vectorStore.setEmbedding(documentId, index, vector);
       }
@@ -151,11 +157,7 @@ export class IngestConsumer extends WorkerHost {
       // missing document.
       let graph = { entities: 0, located: 0, relations: 0 };
       try {
-        graph = await this.graphExtraction.extractForDocument(
-          documentId,
-          extracted.text,
-          chunks,
-        );
+        graph = await this.graphExtraction.extractForDocument(documentId, extracted.text, contents);
       } catch (error) {
         this.logger.error(
           `[${documentId}] graph extraction failed; document stays completed with an empty graph: ${(error as Error).message}`,
@@ -178,7 +180,9 @@ export class IngestConsumer extends WorkerHost {
           where: { id: documentId },
           data: { status: 'failed', error: message },
         });
-        this.logger.error(`[${documentId}] failed after ${job.attemptsMade + 1} attempts: ${message}`);
+        this.logger.error(
+          `[${documentId}] failed after ${job.attemptsMade + 1} attempts: ${message}`,
+        );
       } else {
         this.logger.warn(`[${documentId}] attempt failed (${attemptsLeft} left): ${message}`);
       }

@@ -3,7 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
 import { EMBEDDING_SERVICE } from '../src/infrastructure/ai/ai.di-token';
 import type { IEmbeddingService } from '../src/infrastructure/ai/ai.port';
-import { CHUNKING_STRATEGY, splitText } from '../src/infrastructure/chunking/text-splitter';
+import { ChunkingService } from '../src/infrastructure/chunking/chunking.service';
+import { DEFAULT_CHUNKING_STRATEGY } from '../src/infrastructure/chunking/chunking.types';
 import { VectorStoreService } from '../src/infrastructure/vector-store/vector-store.service';
 import { PrismaService } from '../src/shared/database/prisma.service';
 
@@ -29,6 +30,9 @@ async function main() {
   // this script demanded AWS credentials while the app was running on Gemini.
   const embeddings = app.get<IEmbeddingService>(EMBEDDING_SERVICE, { strict: false });
   const vectorStore = app.get(VectorStoreService, { strict: false });
+  // Through the same service the consumer uses, so a strategy change lands here
+  // too instead of leaving the backfill writing a value nothing else produces.
+  const chunking = app.get(ChunkingService, { strict: false });
 
   const documents = await prisma.document.findMany({
     where: { status: 'completed', textContent: { not: null } },
@@ -39,7 +43,7 @@ async function main() {
 
   let totalChunks = 0;
   for (const document of documents) {
-    const chunks = splitText(document.textContent ?? '');
+    const chunks = await chunking.split(document.textContent ?? '', DEFAULT_CHUNKING_STRATEGY);
     if (chunks.length === 0) {
       logger.warn(`${document.filename}: no chunks, skipping`);
       continue;
@@ -49,15 +53,18 @@ async function main() {
     // part instead of doubling it.
     await vectorStore.replaceChunks(
       document.id,
-      chunks.map((content, index) => ({
+      chunks.map((chunk, index) => ({
         documentId: document.id,
-        content,
-        chunkingStrategy: CHUNKING_STRATEGY,
+        content: chunk.content,
+        chunkingStrategy: DEFAULT_CHUNKING_STRATEGY,
         chunkIndex: index,
       })),
     );
 
-    const vectors = await embeddings.generateEmbeddings(chunks, 'search_document');
+    const vectors = await embeddings.generateEmbeddings(
+      chunks.map((chunk) => chunk.content),
+      'search_document',
+    );
     for (const [index, vector] of vectors.entries()) {
       await vectorStore.setEmbedding(document.id, index, vector);
     }

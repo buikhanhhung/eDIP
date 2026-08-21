@@ -8,8 +8,6 @@
  * what this does without the `cheerio` dependency.
  */
 
-export const CHUNKING_STRATEGY = 'recursive';
-
 export function splitText(text: string, size = 1000, overlap = 100): string[] {
   const paragraphs = text
     .split(/\n\s*\n/)
