@@ -34,3 +34,11 @@ Thumbs.db
 # Editor
 .idea/
 *.swp
+
+# Agent tooling installed into the working copy, not part of the product.
+# `.agents/` alone is 927 files of vendored skill copies, and `.claude/skills/`
+# is symlinks — which do not survive a clone between Windows and Linux. Left
+# untracked these are one `git add -A` away from landing in the history.
+.agents/
+.claude/
+skills-lock.json
